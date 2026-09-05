@@ -22,8 +22,12 @@ theme:
         icon: material/weather-night
         name: 切換至亮色模式
   features:
+    - navigation.instant
+    - navigation.tracking
     - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
+    - navigation.expand
     - navigation.top
     - search.suggest
     - search.highlight
@@ -49,11 +53,15 @@ markdown_extensions:
   - attr_list
 
 nav:
-  - 首頁與學習路徑: index.md
-  - Level 1 觀念與環境架設: 01-basics.md
-  - Level 2 核心 CRUD 操作: 02-crud.md
-  - Level 3 聚合管道 Aggregation: 03-aggregation.md
-  - Level 4 索引與效能調校: 04-indexing.md
-  - Level 5 資料模型設計: 05-data-modeling.md
-  - Level 6 Python 實戰整合: 06-python-integration.md
-  - Level 7 叢集架構與維運: 07-architecture.md
+  - 首頁總覽: index.md
+  - 基礎入門:
+      - Level 1 觀念與環境架設: 01-basics.md
+      - Level 2 核心 CRUD 操作: 02-crud.md
+  - 進階調校:
+      - Level 3 聚合管道 Aggregation: 03-aggregation.md
+      - Level 4 索引與效能調校: 04-indexing.md
+  - 架構設計:
+      - Level 5 資料模型設計思維: 05-data-modeling.md
+      - Level 7 叢集架構與高可用: 07-architecture.md
+  - 實戰開發:
+      - Level 6 Python 實戰整合: 06-python-integration.md
