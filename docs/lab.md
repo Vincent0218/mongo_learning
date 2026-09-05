@@ -52,7 +52,7 @@ docker compose -f compose.transactions.yml exec -T mongodb mongosh --quiet /exam
 mongodb://127.0.0.1:27018/?replicaSet=rs0&directConnection=true
 ```
 
-這個 replica set 宣告的成員名稱 `mongodb:27017` 只在 Compose 網路內可解析。主機端用 `directConnection=true` 直接連接映射埠；這是本機單節點練習方式。正式多節點部署必須使用客戶端可解析的各節點位址與正常拓撲探索。
+這個 replica set 宣告的成員名稱 `mongodb:27017` 只在 Compose 網路內可解析。主機端用 `directConnection=true` 直接連接本機對應的 Port (Port Mapping)；這是本機單節點練習方式。正式多節點部署必須使用客戶端可解析的各節點位址與正常拓撲探索。
 
 !!! warning "僅供本機練習"
     交易環境沒有啟用認證，僅將連接埠綁定 loopback；同機程式及相同 Docker 網路仍可連線。不要公開此環境。單節點 replica set 能練習交易，但不能演練高可用；正式副本集還需認證、TLS、內部認證與多個節點。
@@ -61,8 +61,8 @@ mongodb://127.0.0.1:27018/?replicaSet=rs0&directConnection=true
 
 | 環境分類 | 監聽埠 (Port) | 認證 (Auth) | 適用場景與章節 | 連線字串 (Connection URI) 關鍵特徵 |
 | :--- | :--- | :--- | :--- | :--- |
-| **一般環境** (Standalone) | `27017` | `admin` / `password123` | Level 1~5 CRUD、聚合、索引 | `mongodb://admin:password123@127.0.0.1:27017/?authSource=admin` |
-| **交易環境** (Replica Set) | `27018` | 無 (免密碼) | Level 6 多文件 ACID 交易 | `mongodb://127.0.0.1:27018/?replicaSet=rs0&directConnection=true` |
+| **一般環境** (Standalone) | `27017` | `admin` / `password123` | 核心基礎、查詢分析、索引練習 | `mongodb://admin:password123@127.0.0.1:27017/?authSource=admin` |
+| **交易環境** (Replica Set) | `27018` | 無 (免密碼) | 應用實戰之多文件 ACID 交易 | `mongodb://127.0.0.1:27018/?replicaSet=rs0&directConnection=true` |
 
 > 💡 **防踩坑提示**：多文件交易在 MongoDB 中**嚴格要求**在 Replica Set 或 Sharded Cluster 執行。若使用 `27017` 執行交易會收到 `Transaction numbers are only allowed on a replica set member` 錯誤。
 

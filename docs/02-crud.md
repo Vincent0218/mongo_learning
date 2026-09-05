@@ -49,7 +49,7 @@ db.products.countDocuments({discount: {$type: 10}})        // 1：BSON null
 db.products.countDocuments({discount: {$exists: false}})   // 3：不存在
 ```
 
-投影可以選擇欄位或排除欄位；除 `_id` 例外外，不要混用 inclusion 與 exclusion。
+投影可以選擇欄位或排除欄位；除了 `_id` 可例外排除之外，投影時不要同時混用包含（inclusion）與排除（exclusion）。
 
 ## 3. 穩定排序與分頁
 

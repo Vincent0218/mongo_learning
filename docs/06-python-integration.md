@@ -21,7 +21,7 @@ price 使用整數分，避免用 binary float 累計金額。其他需要小數
 
 ## 3. 同步 CRUD 與非同步讀取
 
-以下為可直接執行的完整程式碼（已封裝模型、CRUD、正則包含搜尋與交易操作）：
+以下為可直接執行的完整程式碼（已封裝模型、CRUD、Regex（正規表達式）子字串搜尋與交易操作）：
 
 ??? example "點擊展開查看完整原始碼：examples/python/demo.py"
     ```python
@@ -41,7 +41,7 @@ transfer 依序檢查：
 
 1. 金額為正整數且在 int64 範圍，兩端帳戶不同。
 2. 扣款命中一筆，包含 balance 足夠的條件。
-3. 入帳命中一筆，否則拋出 TransferRejected，使扣款回滾。
+3. 入帳命中一筆，否則拋出 TransferRejected，觸發交易 Rollback（撤銷扣款）。
 
 所有操作都帶同一 session。with_transaction 處理符合條件的重試；callback 可能執行多次，不能在其中寄信或呼叫有副作用的外部 API。保留資料庫例外，讓 Driver 能辨識 retry labels。整個業務請求若重送，仍需另設業務冪等鍵，不能只依靠 transaction。
 

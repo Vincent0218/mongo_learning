@@ -46,7 +46,7 @@ builder.Services.AddSingleton<IMongoDatabase>(sp =>
 !!! info "交易環境連線提醒"
     多文件 ACID 交易**僅能**在 [交易環境 (Replica Set)](lab.md#2-replica-set)（連接埠 `27018`，免帳密，帶 `replicaSet=rs0&directConnection=true`）執行。一般環境（`27017` Standalone）不支援交易操作。
 
-WithTransactionAsync 的 callback 可能重試；不要吞掉資料庫例外或在其中發送外部通知。matchedCount=0 是業務失敗，需要主動拋例外才能回滾。測試中的「收款帳戶不存在」會先扣款再失敗，確認交易能撤銷扣款。
+WithTransactionAsync 的 callback 可能重試；不要吞掉資料庫例外或在其中發送外部通知。matchedCount=0 是業務失敗，需要主動拋例外才能觸發 Rollback（撤銷交易）。測試中的「收款帳戶不存在」會先扣款再失敗，確認交易能撤銷扣款。
 
 本例用 Transfers 封裝完整業務操作。若另加 Repository，不宜只提供無上限 GetAll 或把所有更新都包成 ReplaceOne；應保留有界查詢、條件更新、session 及取消能力。ReplaceOne 會移除未傳入的欄位；ModifiedCount=0 也可能只是值相同。
 
@@ -57,6 +57,6 @@ WithTransactionAsync 的 callback 可能重試；不要吞掉資料庫例外或�
 **練習：** 已查出帳戶存在，是否能省略入帳後的 MatchedCount？
 
 ??? success "解答"
-    不應省略。更新結果才反映該次寫入是否命中；未命中並不會自動拋例外。保留檢查才能讓交易中的業務條件失敗觸發回滾。
+    不應省略。更新結果才反映該次寫入是否命中；未命中並不會自動拋例外。保留檢查才能讓交易中的業務條件失敗時觸發 Rollback。
 
 參考：[C# transactions](https://www.mongodb.com/docs/drivers/csharp/current/fundamentals/transactions/)。

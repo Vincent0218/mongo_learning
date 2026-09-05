@@ -59,7 +59,7 @@ status 先限制範圍，createdAt 和 _id 提供穩定排序，totalAmount 為�
 | totalKeysExamined | 掃描的索引鍵數，應與回傳量及查詢語意一起比較 |
 | COLLSCAN | 集合掃描；小集合或需讀大部分資料時不一定不好 |
 | IXSCAN／FETCH | 索引掃描／取得文件 |
-| SORT | 額外排序；不一定全在記憶體，需看是否落盤與相關統計 |
+| SORT | 額外排序；不一定全在記憶體，需看是否溢出寫入磁碟 (Spill to disk) 與相關統計 |
 
 不要依單次 executionTimeMillis 判斷優劣；快取、資料量與測量噪音都會影響結果。執行計畫的巢狀結構亦會隨版本與引擎改變。
 

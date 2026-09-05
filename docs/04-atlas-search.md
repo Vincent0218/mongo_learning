@@ -13,7 +13,7 @@
 | --- | --- | --- |
 | SKU／分類精確相等 | 一般等值查詢；Search 中使用 token + equals | 大小寫及 normalization 需明確定義 |
 | 任意位置包含文字 | 跳脫後的 regex；或 keyword + wildcard | 前置萬用字元可能昂貴，需實測 |
-| 中文全文相關度 | CJK analyzer + text | 是詞項匹配，不是理解自然語言語意 |
+| 中文全文相關度 | CJK analyzer + text | 是關鍵詞（Token / Term）匹配，而非理解自然語言語意 |
 | 打字補全 | autocomplete 索引 | minGrams、tokenization 會影響短詞命中 |
 | 語義相近 | 向量索引 + vectorSearch | 效果取決於向量模型、資料與召回設定 |
 
@@ -76,7 +76,7 @@ mongosh $env:MONGO_SEARCH_URI --quiet examples/mongosh/seed.js
 --8<-- "examples/search/products-search.json"
 ```
 
-`dynamic: false` 表示未宣告的欄位無法直接拿來搜尋；因此 category、sku、tags 都明確列出。string 搭配 `lucene.cjk` 適合做 CJK 詞項檢索，但不是所有繁體中文資料集的最佳選擇，仍需以自己的查詢集比較。
+`dynamic: false` 表示未宣告的欄位無法直接拿來搜尋；因此 category、sku、tags 都明確列出。string 搭配 `lucene.cjk` 適合做 CJK 關鍵字 (Term) 檢索，但不是所有繁體中文資料集的最佳選擇，仍需以自己的查詢集比較。
 
 補全獨立使用 keyword analyzer 與 nGram，minGrams=2，使「降噪」這種兩字子字串有可索引的片段；單字「降」不在此設計的保證範圍。長字串受 maxGrams、分析器及 token 限制影響，不應承諾任意長度都能命中。[Autocomplete 索引設定](https://www.mongodb.com/docs/search/indexes/field-types/autocomplete-type/)
 
@@ -92,7 +92,7 @@ db.products.aggregate([
 ])
 ```
 
-預期結果包含人體工學鍵盤。text 使用分析後的詞項；不要把 must 中的一個 text 查詢解讀成「所有中文字逐字相連」。需要詞項順序可使用 phrase 與 slop，但其含義仍以分析器產生的 token 為準。
+預期結果包含人體工學鍵盤。text 查詢會比對分析器切分後的 Term (Token)；不要把 must 中的一個 text 查詢解讀成「所有中文字逐字相連」。若需要指定字詞順序，可使用 phrase 與 slop，但其匹配仍以分析器產生的 token 為準。
 
 ### products_substring：不分詞的 wildcard
 
@@ -109,7 +109,7 @@ db.products.aggregate([
 ])
 ```
 
-預期包含無線降噪耳機。keyword analyzer 保留完整詞項；這個設定預設不做小寫化。動態輸入要另外跳脫 wildcard 的 `*`、`?`、反斜線，不能直接套 regex 的跳脫規則。長欄位及前置 wildcard 都應測量成本，不承諾百萬筆毫秒級。
+預期包含無線降噪耳機。keyword analyzer 將整串文字保留為單一完整 Token（不切詞）；這個設定預設不做小寫化。動態輸入要另外跳脫 wildcard 的 `*`、`?`、反斜線，不能直接套 regex 的跳脫規則。長欄位及前置 wildcard 都應測量成本，不承諾百萬筆毫秒級。
 
 ## 4. products_vector：不用外部 API 的流程練習
 

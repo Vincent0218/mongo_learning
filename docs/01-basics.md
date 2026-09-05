@@ -28,7 +28,7 @@ db.products.findOne({_id: ObjectId("100000000000000000000001")})
 
 ### ObjectId 的 12 bytes
 
-- 4 bytes：產生 ID 時的 Unix 秒級時間戳。
+- 4 bytes：產生 ID 時的 Unix 秒級時間戳記 (Timestamp)。
 - 5 bytes：每個程序產生的隨機值。
 - 3 bytes：從隨機起點遞增的計數器。
 
