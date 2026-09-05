@@ -219,7 +219,116 @@ db.products.aggregate([
 
 ---
 
-## 4. 傳統 MongoDB 本地環境 `$text` 索引的中文技巧
+## 4. 🎯 特殊場景：免分詞！任意長度 Keyword 子字串匹配 (Substring Match)
+
+若您的業務情境**完全不需要詞典分詞**，也不需要繁簡轉換，而是希望達到類似 SQL 的 `LIKE '%關鍵字%'`——**只要文件包含該段「任意長度」的字串，就必須精準找出文件**，以下為業界三大最優實作策略：
+
+```mermaid
+graph TD
+    Req["需求：免分詞、免詞典<br/>任意長度 Keyword 包含匹配"] --> Choice{資料量大小？}
+    Choice -->|中小資料量<br/>或本機 MongoDB| DirectRegex["策略 1：原生 $regex 查詢<br/>免建額外索引，隨寫隨用"]
+    Choice -->|海量資料 / 百萬級<br/>需毫秒級高速回應| LuceneWildcard["策略 2：Atlas Search + wildcard<br/>(以 lucene.keyword 不分詞索引搭配萬用字元)"]
+    Choice -->|高頻全文搜尋體驗| NGram["策略 3：N-Gram 切片索引<br/>(按固定字元長度切片，無字典偏誤)"]
+
+    style DirectRegex fill:#e3f2fd,stroke:#1565c0;
+    style LuceneWildcard fill:#e8f5e9,stroke:#2e7d32;
+    style NGram fill:#fff3e0,stroke:#e65100;
+```
+
+---
+
+### 策略 1：MongoDB 原生 `$regex`（免 Atlas、通用性最高）
+
+如果您不需要複雜的搜尋引擎評分，只想要精準找出包含特定字串的文件，直接使用 MongoDB 原生查詢運算符即可，**任何版本（本機 Docker、任何雲端環境）皆能執行**：
+
+```javascript
+// 尋找 name 欄位包含任意長度 keyword 的文件
+// $options: "i" 代表忽略大小寫 (case-insensitive)
+db.products.find({
+  name: { $regex: "任意長度Keyword", $options: "i" }
+});
+```
+
+#### 各語言原生實作範例：
+=== "Python (PyMongo)"
+    ```python
+    import re
+
+    keyword = "降噪"
+    # 使用 re.compile 搭配 re.IGNORECASE
+    regex_pattern = re.compile(re.escape(keyword), re.IGNORECASE)
+    results = list(db.products.find({"name": regex_pattern}))
+    ```
+
+=== ".NET (C#)"
+    ```csharp
+    using MongoDB.Bson;
+    using MongoDB.Driver;
+
+    string keyword = "降噪";
+    // 建立正則表達式過濾器
+    var filter = Builders<Product>.Filter.Regex(
+        x => x.Name,
+        new BsonRegularExpression(keyword, "i")
+    );
+    var results = await collection.Find(filter).ToListAsync();
+    ```
+
+=== "Golang"
+    ```go
+    keyword := "降噪"
+    filter := bson.M{
+        "name": primitive.Regex{Pattern: keyword, Options: "i"},
+    }
+    cursor, err := col.Find(ctx, filter)
+    ```
+
+!!! warning "原生 `$regex` 的效能考量"
+    - **前綴匹配（Prefix Match）**：若搜尋條件是 `^關鍵字`，且該欄位建有標準 B-Tree 索引，MongoDB **可以直接走 `IXSCAN`（索引掃描）**，速度極快。
+    - **任意位置匹配（Contains Match）**：若在中間或結尾（包含搜尋），傳統 B-Tree 索引無法利用最左前綴，會退化為全表掃描（`COLLSCAN`）。資料量超過十萬筆時，強烈建議使用下方的 **策略 2（Atlas Search）**。
+
+---
+
+### 策略 2：Atlas Search `wildcard`（百萬級海量資料首選）
+
+在 Atlas Search 中，可將欄位設定為 **不分詞（`lucene.keyword`）**，讓文字完全保持原始長度與內容，再透過 **`wildcard`** 運算符以萬用字元 `*` 匹配任意長度子字串：
+
+#### 1. 索引配置（將分析器設為不分詞的 `lucene.keyword`）：
+```json
+{
+  "mappings": {
+    "dynamic": false,
+    "fields": {
+      "name": {
+        "type": "string",
+        "analyzer": "lucene.keyword"
+      }
+    }
+  }
+}
+```
+
+#### 2. 查詢語法（前後加上 `*` 實現任意長度命中）：
+```javascript
+db.products.aggregate([
+  {
+    $search: {
+      index: "default",
+      wildcard: {
+        query: "*降噪*",               // 只要包含「降噪」即命中
+        path: "name",
+        allowAnalyzedField: true
+      }
+    }
+  },
+  { $limit: 20 }
+]);
+```
+- **優勢**：由 Lucene 核心倒排索引加速，即使是百萬筆資料也能在毫秒內快速定位，完全不依賴字典，精準無失真！
+
+---
+
+## 5. 傳統 MongoDB 本地環境 `$text` 索引的中文技巧
 
 如果您目前是在本地 Docker 環境運行標準 MongoDB（非 Atlas 雲端），傳統的 `$text` 索引因為缺乏內建中文詞典，預設會將中文長句當作單一英文字詞處理。
 
@@ -240,7 +349,7 @@ db.products.aggregate([
 
 ---
 
-## 5. 現代 AI 核心：Atlas Vector Search (向量語義檢索)
+## 6. 現代 AI 核心：Atlas Vector Search (向量語義檢索)
 
 當關鍵字無法精確表達使用者意圖時（例如使用者搜尋：「*想找適合在捷運上聽音樂不被干擾的裝備*」），字面完全沒有「耳機」或「降噪」二字，傳統關鍵字搜尋會掛零。此時需要 **向量語義搜尋**：
 
@@ -278,7 +387,7 @@ db.products.aggregate([
 
 ---
 
-## 6. 多語言中文搜尋呼叫範例
+## 7. 多語言中文搜尋呼叫範例
 
 === "Python (PyMongo)"
     ```python
