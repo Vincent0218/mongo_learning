@@ -58,6 +58,7 @@ docker exec -it mongo_learning_db mongosh -u admin -p password123 --authenticati
 | **Level 5** | [資料模型設計思維](docs/05-data-modeling.md) | 內嵌（Embedding）vs 參照（Referencing）、Subset 與 Bucket 等 4 大設計模式 |
 | **Level 6** | [Python 實戰整合](docs/06-python-integration.md) | 使用 `uv` 環境、PyMongo、Motor 非同步、Pydantic 驗證、交易 |
 | **Level 6** | [.NET (C#) 實戰整合](docs/06-dotnet-integration.md) | 官方 `MongoDB.Driver`、POCO BSON 標記、LINQ 查詢、強型別 Builders、Repository 封裝 |
+| **Level 6** | [Golang 實戰整合](docs/06-golang-integration.md) | 官方 `mongo-go-driver`、BSON (M/D/E/A) 四大結構、Pipeline 聚合、連線池、交易 |
 | **Level 7** | [叢集架構與維運](docs/07-architecture.md) | 副本集（Replica Set）高可用自動容錯、分片（Sharding）水平擴展 |
 
 ---

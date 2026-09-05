@@ -66,3 +66,4 @@ nav:
   - 實戰開發:
       - Level 6 Python 實戰整合: 06-python-integration.md
       - Level 6 .NET (C#) 實戰整合: 06-dotnet-integration.md
+      - Level 6 Golang 實戰整合: 06-golang-integration.md
