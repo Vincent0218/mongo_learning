@@ -183,13 +183,64 @@ db.orders.aggregate([
 ])
 // {status: "PAID", customerNames: ["Alice"]}
 
+### 範例：各商品類別的營運統計（深入拆解）
+
+以下範例示範如何一次產出各類別的**「平均單價」、「旗下商品去重清單」與「商品款式總數」**：
+
+```javascript
 db.products.aggregate([
-  {$group: {_id: "$category", averagePrice: {$avg: "$price"}, productNames: {$addToSet: "$name"}, count: {$sum: 1}}},
-  {$sort: {_id: 1}}
-])
+  {
+    $group: {
+      // 1. 分組鍵 (Group Key)：等同於 SQL 的 GROUP BY category
+      _id: "$category",
+
+      // 2. 平均值累加器：等同於 SQL 的 AVG(price)
+      averagePrice: { $avg: "$price" },
+
+      // 3. 集合收集累加器：將商品名稱打包成陣列，且自動「去除重複值」
+      productNames: { $addToSet: "$name" },
+
+      // 4. 計數累加器：等同於 SQL 的 COUNT(*)，每流入一筆文件就 +1
+      count: { $sum: 1 }
+    }
+  },
+  // 5. 排序：依據分組後的 _id (即 category 名稱) 升冪排序
+  { $sort: { _id: 1 } }
+]);
 ```
 
-`$addToSet` 的結果順序沒有保證。`$first` 要表達「第一筆」時，必須先定義順序；不要假設自然順序等於時間順序。
+#### 實際執行後的輸出結果
+
+在教材的 4 筆商品資料庫中，執行上述管道會產出以下統計摘要：
+
+```json
+[
+  {
+    "_id": "周邊配備",
+    "averagePrice": 655000, // (320000 + 990000) / 2 = 6550 元
+    "productNames": ["人體工學鍵盤", "4K 27吋螢幕"],
+    "count": 2
+  },
+  {
+    "_id": "配件",
+    "averagePrice": 89000, // 890 元
+    "productNames": ["USB-C 充電器"],
+    "count": 1
+  },
+  {
+    "_id": "電子產品",
+    "averagePrice": 499000, // 4990 元
+    "productNames": ["無線降噪耳機"],
+    "count": 1
+  }
+]
+```
+
+#### 關鍵累加器技巧：`$addToSet` vs `$push`
+- **`$addToSet`（集合模式）**：像數學中的 Set，如果該類別有多個同名商品，**只會保留一份（自動去重）**；但陣列中的元素順序不保證。
+- **`$push`（列表模式）**：像 List/Array，照單全收，即使名稱一模一樣也會全數塞進陣列。
+- **若需取第一筆（`$first`）或最後一筆（`$last`）**：在執行 `$group` 前的 Stage **務必先用 `$sort` 顯式定義順序**，切勿假設 MongoDB 的自然儲存順序等於時間順序！
+
 
 ## 4. 效能與練習
 
