@@ -1,4 +1,4 @@
-# Level 6：.NET C# 實戰整合
+# .NET C# 實戰整合
 
 **前置條件：** [一般與交易環境](lab.md)已初始化。目標框架 .NET 8、MongoDB.Driver 3.5.0；套件固定在 `examples/dotnet/MongoLearning.csproj` 與 packages.lock.json。
 

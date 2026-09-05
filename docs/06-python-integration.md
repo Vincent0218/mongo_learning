@@ -1,4 +1,4 @@
-# Level 6：Python 實戰整合
+# Python 實戰整合
 
 **前置條件：** 完成[一般環境與交易環境](lab.md)初始化。版本固定為 Python 3.12 以上、PyMongo 4.15.5、Pydantic 2.12.5；詳細相依版本在 `examples/python/uv.lock`。
 

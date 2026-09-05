@@ -1,4 +1,4 @@
-# Level 6：Go 實戰整合
+# Go 實戰整合
 
 **前置條件：** [一般及交易環境](lab.md)已初始化。Go 1.23 以上，MongoDB Go Driver v2.3.1；版本固定在 `examples/go/go.mod`，相依檢查碼在 go.sum。
 

@@ -41,18 +41,18 @@ docker compose -f compose.transactions.yml exec -T mongodb mongosh --quiet /exam
 
 ## 學習章節
 
-| 章節 | 內容 |
+| 模組篇章 | 內容 |
 | --- | --- |
-| [Level 1](docs/01-basics.md) | 文件模型、BSON、ObjectId 與環境 |
-| [Level 2](docs/02-crud.md) | CRUD、null、條件更新、穩定分頁 |
-| [Level 3](docs/03-aggregation.md) | 月度營收排行榜與 lookup |
-| [Level 4](docs/04-indexing.md) | ESR、explain、covered query |
-| [搜尋專題](docs/04-atlas-search.md) | 中文全文、字面包含、補全、教學向量 |
-| [Level 5](docs/05-data-modeling.md) | 內嵌／參照、四大模式、schema validation |
-| [Python](docs/06-python-integration.md) | PyMongo Async 與 Pydantic |
-| [C#](docs/06-dotnet-integration.md) | .NET 8、Driver、LINQ |
-| [Go](docs/06-golang-integration.md) | Go Driver v2、context |
-| [Level 7](docs/07-architecture.md) | 副本集、一致性、分片、備份還原 |
+| [核心觀念與環境架設](docs/01-basics.md) | 文件模型、BSON、ObjectId 與環境 |
+| [核心 CRUD 與進階查詢](docs/02-crud.md) | CRUD、null、條件更新、穩定分頁 |
+| [聚合管道 Aggregation](docs/03-aggregation.md) | 月度營收排行榜與 lookup |
+| [索引架構與效能調校](docs/04-indexing.md) | ESR、explain、covered query |
+| [全文、子字串與向量搜尋](docs/04-atlas-search.md) | 中文全文、字面包含、補全、教學向量 |
+| [資料模型設計思維](docs/05-data-modeling.md) | 內嵌／參照、四大模式、schema validation |
+| [Python 實戰整合](docs/06-python-integration.md) | PyMongo Async 與 Pydantic |
+| [.NET C# 實戰整合](docs/06-dotnet-integration.md) | .NET 8、Driver、LINQ |
+| [Go 實戰整合](docs/06-golang-integration.md) | Go Driver v2、context |
+| [叢集架構與高可用](docs/07-architecture.md) | 副本集、一致性、分片、備份還原 |
 
 ## 範例與驗證
 

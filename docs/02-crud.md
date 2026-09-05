@@ -1,4 +1,4 @@
-# Level 2：核心 CRUD 操作與進階查詢
+# 核心 CRUD 操作與進階查詢
 
 **前置條件：** 完成[資料初始化](lab.md)，在 mongosh 選擇 `mongo_learning_lab`。本章價格單位均為新台幣分。每次重做可先重跑 seed，避免前一次更新影響預期結果。
 

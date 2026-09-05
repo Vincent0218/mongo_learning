@@ -60,17 +60,17 @@ nav:
   - 實作環境與驗證:
       - 實作環境與資料合約: lab.md
       - 測試與驗證紀錄: verification.md
-  - 基礎入門:
-      - Level 1 觀念與環境架設: 01-basics.md
-      - Level 2 核心 CRUD 操作: 02-crud.md
-  - 進階調校:
-      - Level 3 聚合管道 Aggregation: 03-aggregation.md
-      - Level 4 索引與效能調校: 04-indexing.md
-      - Atlas Search 全文與向量檢索: 04-atlas-search.md
-  - 架構設計:
-      - Level 5 資料模型設計思維: 05-data-modeling.md
-      - Level 7 叢集架構與高可用: 07-architecture.md
-  - 實戰開發:
-      - Level 6 Python 實戰整合: 06-python-integration.md
-      - Level 6 .NET (C#) 實戰整合: 06-dotnet-integration.md
-      - Level 6 Golang 實戰整合: 06-golang-integration.md
+  - 核心基礎:
+      - 核心觀念與環境架設: 01-basics.md
+      - 核心 CRUD 與進階查詢: 02-crud.md
+  - 查詢與分析:
+      - 聚合管道 Aggregation: 03-aggregation.md
+      - 索引架構與效能調校: 04-indexing.md
+      - 全文、子字串與向量搜尋: 04-atlas-search.md
+  - 應用與實戰:
+      - 資料模型設計思維: 05-data-modeling.md
+      - Python 實戰整合: 06-python-integration.md
+      - .NET (C#) 實戰整合: 06-dotnet-integration.md
+      - Golang 實戰整合: 06-golang-integration.md
+  - 生產維運:
+      - 叢集架構與高可用: 07-architecture.md
