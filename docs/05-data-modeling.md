@@ -1,142 +1,121 @@
-# Level 5：資料模型設計思維 (Data Modeling)
+# Level 5：資料模型設計思維
 
-在關聯式資料庫中，設計模式通常是依循「第三正規化 (3NF)」來消除重複；然而在 MongoDB 中，**設計的核心原則是：為應用程式的「存取模式（Access Patterns）」量身打造**。
+**前置條件：** 完成 CRUD 與聚合章節。本章先用存取需求做設計取捨，再於獨立集合練習 schema validation；文件結構標示為「示意」時不是可直接貼上的命令。
 
-> **NoSQL 核心箴言**：資料如果是一起被讀取的，就應該儲存在一起（Data that is accessed together should be stored together）。
+## 1. 先列出存取模式
 
----
-
-## 1. 內嵌 (Embedding) vs 參照 (Referencing)
+針對每個畫面或工作列出：讀哪些欄位、資料量、排序、更新頻率、是否必須一起原子變更。以訂單為例，明細通常一起讀取且需要保留成交價格，適合內嵌；商品本身仍為獨立實體。
 
 ```mermaid
-graph TD
-    Start{資料是否經常需要<br/>同時讀取？} -->|是| CheckSize{子資料數量是否有限<br/>且單文件小於 16MB？}
-    Start -->|否| Ref[採用參照 Referencing<br/>跨集合以 ID 關聯]
-    CheckSize -->|是| Embed[採用內嵌 Embedding<br/>直接作為 Subdocument 或陣列]
-    CheckSize -->|否 / 數量無限成長| Ref
-
-    style Embed fill:#c8e6c9,stroke:#2e7d32;
-    style Ref fill:#ffcdd2,stroke:#c62828;
+flowchart TD
+    Read{"經常一起讀取？"} -->|是| Size{"子資料有界且文件大小可控？"}
+    Read -->|否| Reference["參照"]
+    Size -->|否| Reference
+    Size -->|是| Update{"生命週期與更新需求相容？"}
+    Update -->|是| Embed["內嵌"]
+    Update -->|否| Reference
 ```
 
-### 決策矩陣對比
+| 考量 | 內嵌 | 參照 |
+| --- | --- | --- |
+| 讀取 | 一次取得所需資料，文件可能變大 | 額外查詢或 lookup，需設計索引 |
+| 原子更新 | 單文件操作原子 | 若跨文件必須一起成功才需要交易 |
+| 成長 | 不能放無界陣列 | 子文件可分散，但每筆仍有 16 MiB 上限 |
+| 資料生命週期 | 經常一起新增／刪除 | 可各自維護與重用 |
 
-| 考量維度 | 內嵌 (Embedding) | 參照 (Referencing) |
-| :--- | :--- | :--- |
-| **讀取效能** | ⚡ 極快（單次 I/O 取得完整資料，無 JOIN 開銷） | 稍慢（需多次查詢或 `$lookup`） |
-| **原子性保證** | 單一文件更新具備天然 ACID 原子性 | 需多文件 Transaction 才能保證一致性 |
-| **資料大小限制** | 必須注意單一文件 **16MB 上限** | 無限制，資料分散在不同集合中 |
-| **適用場景** | 「包含」關係、1:Few、生命週期高度相依（如訂單明細） | 獨立實體、多對多關係、資料頻繁單獨修改 |
+單文件原子性不等於所有讀寫自然滿足業務一致性；仍需正確 filter 與 read/write concern。參照也不一定需要每次都用交易，取決於不變條件。
 
----
+## 2. 關係與四大設計模式
 
-## 2. 關係模型實務設計指南
+One-to-few 如少量地址可內嵌；數量不確定的評論、日誌應以子文件參照父 ID，並用索引分頁查詢。不要在父文件累積所有子 ID。
 
-### A. 一對很少 (One-to-Few) ➔ 內嵌
-- **範例**：使用者的多個收件地址（通常只有 1~5 個）。
-- **作法**：直接在 `users` 文件內嵌入 `addresses: [{ street, city, zip }]`。
+### Subset：只內嵌常用子集
 
-### B. 一對多 (One-to-Many) ➔ 內嵌或參照
-- **範例**：電商商品的規格或配件（通常數十個）。
-- **作法**：可內嵌在商品內；若規格常被獨立維護或數量龐大，則使用獨立 Collection。
+文章保留最新五則留言供列表顯示，完整留言在 comments。必須定義新增、刪除留言時如何更新子集；可接受延遲的快取與需要強一致的資料不能混為一談。
 
-### C. 一對超級多 (One-to-Squillions) ➔ 子文件反向參照
-- **範例**：日誌日誌（Log）、伺服器感測器數據、Twitter 推文回覆。
-- **作法**：**千萬不要在母文件放入無窮增長的陣列**！應在每筆 Log 文件中記錄母實體 ID：
-  ```javascript
-  // logs 集合中
-  {
-    _id: ObjectId(...),
-    serverHost: "app-node-01",
-    message: "CPU 負載過高",
-    timestamp: ISODate("2026-09-05T10:00:00Z")
-  }
-  ```
+### Extended Reference：快照或副本要說清楚
 
----
+訂單內嵌買家顯示名稱、地址與成交價格，可減少讀取時的 lookup。關鍵是分辨：
 
-## 3. 業界四大必備設計模式
+- **歷史快照：** 下單時的地址、單價通常不跟著使用者或商品修改。
+- **目前資料副本：** 若顯示「目前姓名」，就需更新策略，例如事件同步或讀取時取得最新資料，並定義可接受延遲。
 
-### 模式 1：Subset Pattern（子集模式）
-- **痛點**：一篇熱門文章有數萬則留言，若一次載入會拖垮首頁效能。
-- **解法**：在文章主文件中只保留「前 5 則最新留言」內嵌（滿足 90% 使用者首頁需求）；完整留言存於獨立的 `comments` 集合，點擊「查看全部」時再分頁讀取。
+本課程 orders.items.unitPrice 是歷史快照，所以統計營收不使用 products.price。
 
-### 模式 2：Extended Reference Pattern（擴展參照模式）
-- **痛點**：訂單只要顯示買家的「姓名」與「電話」，卻為了這個每次都要 `$lookup` 使用者表。
-- **解法**：在訂單中保留關聯 ID 同時，冗餘複製最常用的唯讀欄位：
-  ```javascript
-  // orders 集合
-  {
-    orderId: "ORD2026090501",
-    totalPrice: 1500,
-    customer: {
-      userId: ObjectId("64f..."),
-      name: "王小明",          // 常用欄位直接內嵌
-      phone: "0912-345-678"     // 省去關聯開銷
-    }
-  }
-  ```
+### Attribute：用鍵值陣列處理可變規格
 
-### 模式 3：Attribute Pattern（屬性模式）
-- **痛點**：商品有成千上萬種規格（手機有螢幕尺寸、衣物有顏色尺碼、硬碟有容量轉速），若直接當欄位，索引會爆炸。
-- **解法**：將特徵規格轉換為鍵值陣列：
-  ```javascript
-  {
-    productName: "經典T-shirt",
-    specs: [
-      { k: "color", v: "black" },
-      { k: "size", v: "L" },
-      { k: "material", v: "cotton" }
-    ]
-  }
-  // 只需對 specs.k 與 specs.v 建立一個複合索引，就能支援所有屬性的篩選！
-  db.products.createIndex({ "specs.k": 1, "specs.v": 1 });
-  ```
-
-### 模式 4：Bucket Pattern（桶模式）
-- **痛點**：IoT 感測器每秒傳送一筆溫度，若一秒存一筆文件，儲存與索引開銷過於龐大。
-- **解法**：以小時或天為單位，把多筆讀數打包在同一筆文件的陣列中：
-  ```javascript
-  {
-    sensorId: "temp-sensor-12",
-    date: "2026-09-05",
-    hour: 14,
-    readings: [25.4, 25.5, 25.8, ...], // 60 筆數據塞在同一個桶
-    count: 60,
-    sum: 1530.2
-  }
-  ```
-
----
-
-## 4. Schema 驗證（JSON Schema Validation）
-
-雖然 MongoDB 是無結構限制（Schema-less），但在生產環境通常會加上 **Schema Validation** 防止髒資料寫入：
+以下是獨立集合中的可執行練習，不會改掉共用商品的 specs 型別：
 
 ```javascript
-db.createCollection("users", {
-  validator: {
-    $jsonSchema: {
-      bsonType: "object",
-      required: ["username", "email", "age"],
-      properties: {
-        username: {
-          bsonType: "string",
-          description: "username 必須為字串且必填"
-        },
-        email: {
-          bsonType: "string",
-          pattern: "^.+@.+$",
-          description: "email 必須符合基本郵件格式"
-        },
-        age: {
-          bsonType: "int",
-          minimum: 0,
-          maximum: 150,
-          description: "age 必須介於 0 至 150 歲的整數"
-        }
-      }
-    }
-  }
-});
+db.attribute_lab.replaceOne(
+  {_id: "shirt"},
+  {_id: "shirt", specs: [{k: "color", v: "black"}, {k: "size", v: "L"}]},
+  {upsert: true}
+)
+db.attribute_lab.createIndex({"specs.k": 1, "specs.v": 1})
+db.attribute_lab.find({specs: {$elemMatch: {k: "color", v: "black"}}})
+// 命中 shirt
 ```
+
+使用 elemMatch 才能要求同一元素的 k/v 配對。這能減少為不同規格建立大量欄位索引，但不是所有查詢都會自然變快，仍要用 explain 檢查。
+
+### Bucket：把有界的多筆讀數合併
+
+**示意文件：**
+
+```javascript
+({
+  sensorId: "temp-12",
+  bucketStart: ISODate("2026-01-01T00:00:00Z"),
+  readings: [{at: ISODate("2026-01-01T00:00:00Z"), value: 25.4}],
+  count: 1,
+  sum: 25.4
+})
+```
+
+以時間與容量雙重限制 bucket，達到上限就開新桶；更新 readings/count/sum 應同一文件一起更新。若為時序資料，也應評估 MongoDB time-series collection 的內建管理，而非一律手刻桶。
+
+## 3. 型別與 schema validation
+
+本課程統一 ObjectId 關聯、UTC createdAt 與整數分。Python int、Go int64、C# long 可能以不同整數 BSON 型別寫入，因此驗證器可接受 int 與 long；不能用 double 金額偷偷繞過契約。
+
+下列程式可重跑，設定只作用於專用 validated_products 集合：
+
+```javascript
+const validationOptions = {
+  validator: {$jsonSchema: {
+    bsonType: "object",
+    required: ["name", "price", "stock"],
+    properties: {
+      name: {bsonType: "string"},
+      price: {bsonType: ["int", "long"], minimum: 0},
+      stock: {bsonType: ["int", "long"], minimum: 0}
+    }
+  }},
+  validationLevel: "strict",
+  validationAction: "error"
+};
+if (db.getCollectionNames().includes("validated_products")) {
+  db.runCommand({collMod: "validated_products", ...validationOptions});
+} else {
+  db.createCollection("validated_products", validationOptions);
+}
+db.validated_products.replaceOne(
+  {_id: "valid"}, {_id: "valid", name: "練習商品", price: NumberLong("100"), stock: 1},
+  {upsert: true}
+)
+// 預期成功
+db.validated_products.insertOne({name: "錯誤商品", price: "100", stock: -1})
+// 預期 Document failed validation；這是刻意的失敗案例
+```
+
+既有集合加上驗證不會自動修復所有舊資料。正式遷移應先盤點不合規文件、修正或分階段導入，再收緊驗證。
+
+## 練習與解答
+
+**練習：** 商品改價後，既有訂單的總營收應跟著改嗎？
+
+??? success "解答"
+    不應。訂單 unitPrice 表示成交快照；計算營收使用 qty × unitPrice。若直接 lookup 當前商品 price，歷史報表會隨改價變動。
+
+參考：[Schema validation](https://www.mongodb.com/docs/manual/core/schema-validation/)、[Data modeling](https://www.mongodb.com/docs/manual/data-modeling/)。

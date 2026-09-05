@@ -11,3 +11,8 @@ wheels/
 
 # Documentation build output
 site/
+**/bin/
+**/obj/
+examples/go/mongo-learning.exe
+.pytest_cache/
+mongo-learning-lab.archive

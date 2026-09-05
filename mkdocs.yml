@@ -2,6 +2,8 @@ site_name: MongoDB 實戰升級指南
 site_description: 由淺入深的 MongoDB 核心技術與架構實戰全攻略
 site_author: Antigravity Pair Programmer
 copyright: Copyright &copy; 2026
+watch:
+  - examples
 
 theme:
   name: material
@@ -46,7 +48,8 @@ markdown_extensions:
       line_spans: __span
       pygments_lang_class: true
   - pymdownx.inlinehilite
-  - pymdownx.snippets
+  - pymdownx.snippets:
+      check_paths: true
   - pymdownx.tabbed:
       alternate_style: true
   - tables
@@ -54,6 +57,8 @@ markdown_extensions:
 
 nav:
   - 首頁總覽: index.md
+  - 實作環境與驗證: lab.md
+  - 驗證紀錄: verification.md
   - 基礎入門:
       - Level 1 觀念與環境架設: 01-basics.md
       - Level 2 核心 CRUD 操作: 02-crud.md

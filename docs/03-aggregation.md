@@ -1,157 +1,73 @@
-# Level 3：聚合管道 (Aggregation Framework)
+# Level 3：聚合管道 Aggregation
 
-如果說 CRUD 是資料庫的基礎對話，那麼 **聚合管道 (Aggregation Framework)** 就是 MongoDB 的「分析瑞士刀與超強引擎」。它能取代 SQL 中複雜的 `GROUP BY`、`JOIN`、子查詢以及各種資料轉換函數。
+**前置條件：** [匯入共用資料](lab.md)。本章產出 2026 年 1 月已付款訂單的商品營收排行榜，金額單位為新台幣分。
 
----
-
-## 1. 聚合管道的核心心智模型
-
-聚合的核心是 **Pipeline（流水線）**。前一個階段（Stage）的輸出，會作為下一個階段的輸入。
+## 1. Pipeline 的資料流
 
 ```mermaid
-graph LR
-    Input[(原始 Collection 集合)] --> S1["$match<br/>篩選合格文件"]
-    S1 --> S2["$unwind<br/>展開商品陣列"]
-    S2 --> S3["$group<br/>依類別加總營收"]
-    S3 --> S4["$sort<br/>依營收降冪排序"]
-    S4 --> S5["$project<br/>重構輸出格式"]
-    S5 --> Output[(最終統計結果)]
-
-    style Input fill:#e0f7fa,stroke:#00838f;
-    style Output fill:#e8f5e9,stroke:#2e7d32;
+flowchart LR
+    Orders[(orders)] --> Match["$match：月份與付款狀態"]
+    Match --> Unwind["$unwind：拆開 items"]
+    Unwind --> Group["$group：商品銷量與營收"]
+    Group --> Sort["$sort：營收與 ID"]
+    Sort --> Limit["$limit：前五名"]
+    Limit --> Project["$project：輸出欄位"]
 ```
 
-基本呼叫語法：
-```javascript
-db.collection.aggregate([
-  { $stage1: { ... } },
-  { $stage2: { ... } },
-  { $stage3: { ... } }
-]);
-```
+每個 stage 接收前一階段的結果，欄位及筆數可能已改變。以下表格為各階段的閱讀提示；實際可執行程式在下一節。
 
----
+| Stage | 用途 | 常見陷阱 |
+| --- | --- | --- |
+| `$match` | 篩選 | 原始欄位條件通常可放前面利用索引；計算後的欄位不能任意前移 |
+| `$unwind` | 一個陣列元素變成一筆 | 預設會排除空陣列、null 或不存在欄位的文件；需要保留時設定 preserveNullAndEmptyArrays |
+| `$group` | 依 _id 分組 | `$sum: 1` 計算輸入列數，不一定等於訂單數 |
+| `$sort` | 排序 | 加入唯一次排序鍵，避免同分結果順序不穩定 |
+| `$project` | 欄位投影與計算 | `"$field"` 是欄位引用，普通字串是字面值 |
+| `$lookup` | 跨集合關聯 | 結果為陣列，雙方關聯鍵的 BSON 型別須一致 |
 
-## 2. 常用 Stage 詳解
+## 2. 月度商品排行榜：完整可執行範例
 
-### A. `$match`：初期快速過濾
-在管道的最開端使用 `$match` 可以大幅減少後續階段需要處理的資料筆數，且在開頭能有效利用索引！
+程式位於 `examples/mongosh/aggregation.js`，執行命令見[驗證流程](lab.md)。
 
 ```javascript
-// 只分析 2026 年已完成付款的訂單
-{ $match: { status: "completed", orderDate: { $gte: ISODate("2026-01-01") } } }
+--8<-- "examples/mongosh/aggregation.js"
 ```
 
-### B. `$group`：分組與統計
-依據指定的 `_id` 欄位進行分組，並搭配累加器（Accumulator）進行運算。
+UTC 起始時間包含、結束時間不包含，避免跨月重複計入。若業務月份依台北時間，應先把台北月初及下月月初換算成 UTC；不要只改畫面上的日期文字。
 
-```javascript
-{
-  $group: {
-    _id: "$category",                 // 分組鍵 (必須以 $ 符號引用欄位)
-    totalRevenue: { $sum: "$amount" }, // 累加總額
-    avgPrice: { $avg: "$price" },     // 計算平均
-    itemCount: { $sum: 1 },           // 計算數量 (count)
-    productNames: { $addToSet: "$name" } // 收集不重複的商品名清單
-  }
-}
-```
+| productId 尾碼 | 商品 | 銷量 | totalRevenue |
+| --- | --- | --- | --- |
+| 001 | 無線降噪耳機 | 3 | 1497000 |
+| 003 | 4K 27吋螢幕 | 1 | 990000 |
+| 002 | 人體工學鍵盤 | 1 | 320000 |
 
-### C. `$project`：投影與欄位重構
-挑選、重命名欄位，甚至計算新值。
+取消訂單和 2 月訂單不計入。只有三種商品，limit=5 不會憑空補足五筆。程式依商品 ID 統計；若要顯示目前商品名稱，可在分組後 lookup products。訂單明細名稱和 unitPrice 則是下單當時快照，不應隨商品改價而重算歷史營收。
 
-```javascript
-{
-  $project: {
-    _id: 0,
-    categoryName: "$_id",
-    totalRevenue: 1,
-    roundedAvgPrice: { $round: ["$avgPrice", 2] } // 四捨五入到小數點第二位
-  }
-}
-```
-
-### D. `$unwind`：陣列平鋪展開
-將包含陣列的單筆文件，按陣列元素拆分為多筆文件。這在統計陣列內元素時是必備操作。
-
-```javascript
-// 原始文件：{ orderId: 101, items: ["耳機", "滑鼠"] }
-// 經過 $unwind: "$items"
-// 拆為兩筆：
-// 1. { orderId: 101, items: "耳機" }
-// 2. { orderId: 101, items: "滑鼠" }
-{ $unwind: "$items" }
-```
-
-### E. `$lookup`：跨集合關聯 (相當於 SQL LEFT JOIN)
-
-```javascript
-{
-  $lookup: {
-    from: "users",            // 要關聯的外部集合名稱
-    localField: "userId",     // 當前集合的關聯欄位
-    foreignField: "_id",      // 外部集合的目標欄位
-    as: "userInfo"            // 關聯結果存放的欄位名稱 (為陣列)
-  }
-}
-```
-
----
-
-## 3. 綜合實戰範例：月度熱門商品銷售排行榜
-
-假設有訂單集合 `orders`，我們要產出一份**「已付款訂單中，銷售總金額最高的前 5 名商品」**：
+## 3. 關聯與其他累加器
 
 ```javascript
 db.orders.aggregate([
-  // 階段 1：篩選已付款訂單
-  {
-    $match: {
-      status: "PAID"
-    }
-  },
+  {$match: {_id: ObjectId("300000000000000000000001")}},
+  {$lookup: {from: "users", localField: "userId", foreignField: "_id", as: "userInfo"}},
+  {$project: {_id: 0, status: 1, customerNames: "$userInfo.name"}}
+])
+// {status: "PAID", customerNames: ["Alice"]}
 
-  // 階段 2：將訂單明細陣列 items 展開
-  // items 結構範例：[{ productId: "P1", name: "機械鍵盤", qty: 2, unitPrice: 3000 }]
-  {
-    $unwind: "$items"
-  },
-
-  // 階段 3：依商品 ID 分組，計算總銷量與總銷售金額
-  {
-    $group: {
-      _id: "$items.productId",
-      productName: { $first: "$items.name" },
-      totalQuantitySold: { $sum: "$items.qty" },
-      totalRevenue: {
-        $sum: { $multiply: ["$items.qty", "$items.unitPrice"] }
-      }
-    }
-  },
-
-  // 階段 4：依營收由高到低排序
-  {
-    $sort: { totalRevenue: -1 }
-  },
-
-  // 階段 5：限制只取前 5 名
-  {
-    $limit: 5
-  },
-
-  // 階段 6：美化輸出格式
-  {
-    $project: {
-      _id: 0,
-      productId: "$_id",
-      productName: 1,
-      totalQuantitySold: 1,
-      totalRevenue: 1
-    }
-  }
-]);
+db.products.aggregate([
+  {$group: {_id: "$category", averagePrice: {$avg: "$price"}, productNames: {$addToSet: "$name"}, count: {$sum: 1}}},
+  {$sort: {_id: 1}}
+])
 ```
 
-!!! tip "效能心法"
-    1. **Early Filtering**：盡量把 `$match` 與 `$limit` 放到管道最前方，讓後續處理的資料量最小化。
-    2. **善用 Compass 視覺化管道**：MongoDB Compass 提供了 Stage 預覽功能，能逐步檢驗每一步轉換的資料格式，除錯極為直覺！
+`$addToSet` 的結果順序沒有保證。`$first` 要表達「第一筆」時，必須先定義順序；不要假設自然順序等於時間順序。
+
+## 4. 效能與練習
+
+只有不改變語意時，才能提前 match 或 limit。排行榜若把 limit 移到 group 前面，會只統計部分訂單。用 Compass 逐個 stage 預覽，並透過 explain 檢查原始集合掃描；group 後的營收排序通常不能靠原始集合索引完成。
+
+**練習：** 把 2 月的訂單錯誤納入，為何螢幕會成為第一名？如何避免？
+
+??? success "解答"
+    2 月訂單包含十台螢幕，會多出 9900000 分營收。月份條件必須同時包含 gte 月初與 lt 下月月初；腳本的預期結果斷言能抓到這類錯誤。
+
+參考：[Pipeline optimization](https://www.mongodb.com/docs/manual/core/aggregation-pipeline-optimization/)。

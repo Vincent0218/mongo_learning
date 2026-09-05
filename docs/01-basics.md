@@ -1,108 +1,59 @@
 # Level 1：核心觀念與環境架設
 
-在進入任何資料庫操作前，建立正確的心智模型（Mental Model）至關重要。MongoDB 屬於**文件導向（Document-Oriented）**的 NoSQL 資料庫，其設計哲學是以最貼近應用程式物件導向資料結構的方式來儲存資料。
+**目標：** 說明文件與關聯模型的差異，辨識 BSON 型別，完成一次連線與查詢。前置條件及所有環境命令見[實作環境](lab.md)。
 
----
+## 1. RDBMS 與 MongoDB
 
-## 1. RDBMS vs MongoDB 核心概念對照
+| 關聯式資料庫 | MongoDB | 說明 |
+| --- | --- | --- |
+| Database | Database | 邏輯資料容器 |
+| Table | Collection | 文件集合，可選擇加上 schema validation |
+| Row | Document | BSON 文件，可包含內嵌文件與陣列 |
+| Column | Field | 欄位名稱與值 |
+| Primary key | `_id` | 預設常用 ObjectId，也可自行指定其他允許的型別 |
+| JOIN | `$lookup`／內嵌 | 依存取模式選擇，並非所有 JOIN 都應改成內嵌 |
 
-| 傳統關聯式資料庫 (SQL / RDBMS) | MongoDB (NoSQL Document) | 概念說明 |
-| :--- | :--- | :--- |
-| **Database** (資料庫) | **Database** (資料庫) | 資料庫容器，包含多個資料表或集合 |
-| **Table** (資料表) | **Collection** (集合) | 文件的集合，無強制的嚴格 Schema |
-| **Row** (資料列 / 記錄) | **Document** (文件) | 單筆資料記錄，以 BSON 格式呈現 |
-| **Column** (欄位) | **Field** (欄位 / 鍵) | 物件中的 Key-Value 鍵值對 |
-| **Primary Key** (主鍵) | **`_id`** (預設 ObjectId) | 每筆文件的唯一識別碼，預設自動生成 |
-| **Index** (索引) | **Index** (索引) | 加速查詢效能的 B-Tree 結構 |
-| **JOIN** (跨表關聯) | **`$lookup` 或 內嵌文件** | 關聯查詢或直接將相依資料內嵌 |
+彈性 schema 不代表不需要資料模型。欄位命名、型別與關聯 ID 仍應一致，否則會增加查詢及跨語言轉換的成本。需要大量任意關聯、既有 SQL 工具或關聯約束時，應一併評估關聯式資料庫。
 
----
+## 2. JSON 與 BSON
 
-## 2. JSON 與 BSON 的關鍵差異
+JSON 是文字交換格式；BSON 是 MongoDB 使用的二進位文件表示法，另支援 ObjectId、Date、int32、int64、Decimal128、Binary 等型別。BSON 並不保證比 JSON 更小，也不會單憑格式就讓查詢變快；存取模式和索引仍是關鍵。
 
-MongoDB 內部儲存與網路傳輸使用的是 **BSON（Binary JSON）**，而非純文字的 JSON。
-
-- **JSON 的限制**：僅支援字串、數字、布林值、陣列、物件與 null；沒有區分整數與浮點數，也沒有專屬的二進位資料或日期型別。
-- **BSON 的優勢**：
-  - **更豐富的型別**：支援 `Date`、`int32`、`int64`、`double`、`Decimal128`、`ObjectId`、`Binary`。
-  - **高效遍歷**：文件頭部記錄長度，讀取時可快速跳過無關欄位，提升查詢速度。
-
-### 解剖 `_id`：ObjectId 的秘密
-預設的 `_id` 是 12-byte (24 個十六進位字元) 的 BSON ObjectId：
-- **前 4 bytes**：Unix 時間戳記（可直接萃取文件建立時間）
-- **中間 5 bytes**：隨機數值（識別產生該 ID 的主機與程序）
-- **後 3 bytes**：累加計數器（保證同秒內產生的 ID 不衝突）
-
----
-
-## 3. 本機環境建置：Docker Compose（最推薦）
-
-使用 Docker 能確保開發環境純淨，不需要在主機安裝一堆服務。
-
-在專案目錄下建立 `docker-compose.yml`：
-
-```yaml
-services:
-  mongodb:
-    image: mongo:7.0
-    container_name: mongo_learning_db
-    restart: always
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password123
-    volumes:
-      - mongo_data:/data/db
-
-  mongo-express:
-    image: mongo-express:latest
-    container_name: mongo_learning_ui
-    restart: always
-    ports:
-      - "8081:8081"
-    environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
-      ME_CONFIG_MONGODB_ADMINPASSWORD: password123
-      ME_CONFIG_MONGODB_SERVER: mongodb
-      ME_CONFIG_BASICAUTH_USERNAME: webuser
-      ME_CONFIG_BASICAUTH_PASSWORD: webpassword123
-    depends_on:
-      - mongodb
-
-volumes:
-  mongo_data:
-```
-
-啟動服務：
-```bash
-docker compose up -d
-```
-- MongoDB 監聽埠：`localhost:27017`
-- 網頁管理介面 (Mongo-Express)：`http://localhost:8081`（帳號：`webuser` / 密碼：`webpassword123`）
-
----
-
-## 4. 客戶端與除錯工具
-
-### A. MongoDB Shell (`mongosh`)
-現代 MongoDB 的官方終端命令工具（取代舊版 `mongo` shell），支援現代 JavaScript 語法。
-
-```bash
-# 透過 docker 連線至 mongosh
-docker exec -it mongo_learning_db mongosh -u admin -p password123 --authenticationDatabase admin
-```
-
-常用命令速查：
 ```javascript
-show dbs;              // 列出所有資料庫
-use store_db;          // 切換或建立資料庫 (若不存在會在首次寫入時自動建立)
-show collections;      // 列出當前資料庫的所有集合
-db.dropDatabase();     // 刪除當前資料庫
+db.products.findOne({_id: ObjectId("100000000000000000000001")})
+// price: 499000（新台幣分），createdAt: ISODate("2026-01-01T00:00:00Z")
 ```
 
-### B. MongoDB Compass (官方 GUI 工具)
-強烈建議至 MongoDB 官網下載安裝 **MongoDB Compass**。
-- 連線字串 (Connection String)：  
-  `mongodb://admin:password123@localhost:27017/?authSource=admin`
-- 特色：可視化 Schema 分析、可視化 Aggregation Pipeline 建造器、索引使用率圖表。
+字串 `"100000000000000000000001"` 與相同文字表示的 ObjectId 是不同 BSON 型別，查詢時不能互換。JSON 輸出給 API 用戶可轉成字串，讀回時需驗證並明確轉換。
+
+### ObjectId 的 12 bytes
+
+- 4 bytes：產生 ID 時的 Unix 秒級時間戳。
+- 5 bytes：每個程序產生的隨機值。
+- 3 bytes：從隨機起點遞增的計數器。
+
+ObjectId 可在寫入之前由客戶端產生，因此其時間不是可靠的「資料入庫時間」。它也不保證跨程序嚴格按照建立順序排序；需要穩定排序時使用業務時間欄位加 `_id` 作為次排序鍵。教材的固定 ID 僅供重跑，不能用來推算日期。
+
+## 3. 工具與第一個查詢
+
+依[實作環境](lab.md)啟動服務、匯入資料，再進入 mongosh：
+
+```javascript
+show dbs
+use mongo_learning_lab
+show collections
+db.products.find({}, {name: 1, price: 1, _id: 0}).sort({price: 1})
+```
+
+預期四筆商品，從充電器（89000 分）到螢幕（990000 分）。
+
+Compass 使用同一連線字串，可視覺化檢查欄位、聚合管道及執行計畫。Mongo Express 是另一個本機 GUI；先確認目前選中的資料庫，再操作新增或刪除。
+
+## 練習與解答
+
+**練習：** 分別用字串與 ObjectId 查詢第一筆商品，觀察差異。
+
+??? success "解答"
+    `db.products.findOne({_id: "100000000000000000000001"})` 回傳 null；包成 ObjectId 才會命中。這是型別不一致，並非資料消失。
+
+參考：[BSON types](https://www.mongodb.com/docs/manual/reference/bson-types/)、[ObjectId](https://www.mongodb.com/docs/manual/reference/method/ObjectId/)。

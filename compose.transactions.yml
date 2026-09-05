@@ -1,0 +1,27 @@
+name: mongo-learning-transactions
+services:
+  mongodb:
+    image: mongo:7.0
+    # Local-only exercise: no authentication, isolated from the normal database.
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "127.0.0.1:27018:27017"
+    volumes:
+      - transaction_data:/data/db
+      - ./examples/mongosh:/examples:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.adminCommand({ping: 1}).ok ? 0 : 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  init:
+    image: mongo:7.0
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./examples/mongosh:/examples:ro
+    entrypoint: ["mongosh", "mongodb://mongodb:27017/?directConnection=true", "--quiet", "/examples/init-replica.js"]
+    restart: "no"
+volumes:
+  transaction_data:

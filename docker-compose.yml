@@ -4,19 +4,25 @@ services:
     container_name: mongo_learning_db
     restart: always
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: password123
     volumes:
       - mongo_data:/data/db
+      - ./examples/mongosh:/examples:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "-u", "admin", "-p", "password123", "--authenticationDatabase", "admin", "--eval", "quit(db.adminCommand({ping: 1}).ok ? 0 : 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   mongo-express:
-    image: mongo-express:latest
+    image: mongo-express:1.0.2
     container_name: mongo_learning_ui
     restart: always
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     environment:
       ME_CONFIG_MONGODB_ADMINUSERNAME: admin
       ME_CONFIG_MONGODB_ADMINPASSWORD: password123
@@ -24,7 +30,8 @@ services:
       ME_CONFIG_BASICAUTH_USERNAME: webuser
       ME_CONFIG_BASICAUTH_PASSWORD: webpassword123
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
 
 volumes:
   mongo_data:

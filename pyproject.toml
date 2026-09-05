@@ -1,9 +1,9 @@
 [project]
 name = "mongo-learning"
 version = "0.1.0"
-description = "Add your description here"
+description = "繁體中文 MongoDB 教學與可執行實作範例"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "mkdocs-material>=9.7.7",
+    "mkdocs-material==9.7.7",
 ]

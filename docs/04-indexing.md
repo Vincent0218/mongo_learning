@@ -1,111 +1,75 @@
-# Level 4：索引與效能調校 (Indexing & Performance)
+# Level 4：索引與效能調校
 
-當資料量從數千筆成長到數百萬筆時，沒有索引的資料庫將陷入災難性的慢速。本章節將揭密 MongoDB 的索引機制與業界效能調優金科玉律。
+**前置條件：** 一般本機環境可連線。本章腳本自行重建教學資料庫中的 `index_lab` 集合，其他集合不受影響。
 
----
+## 1. 索引的效益與成本
 
-## 1. 索引底層與常見類型
+MongoDB 一般索引使用 B-tree。索引能縮小搜尋範圍或提供排序，但查詢成本仍取決於掃描鍵數、文件數、回傳量與資料分布；有索引不代表一定使用，也不能把整個查詢成本一律視為 O(log N)。
 
-MongoDB 的索引底層採用 **B-Tree** 結構。沒有索引時，MongoDB 必須執行 **全表掃描 (COLLSCAN)**；有了索引，即可透過 **索引掃描 (IXSCAN)** 在 $O(\log N)$ 時間複雜度內定位資料。
+| 類型 | 用途 | 限制與代價 |
+| --- | --- | --- |
+| 單欄位／複合 | 篩選與排序 | 增加寫入與儲存成本；欄位順序影響可用前綴 |
+| unique | 唯一性約束 | 建立時既有重複值會失敗；注意 null／缺少欄位 |
+| multikey | 陣列欄位 | 複合索引有陣列限制，不能任意組合多個獨立陣列 |
+| TTL | Date 欄位過期清理 | 背景非即時刪除；不要把它當成精確到秒的授權過期檢查 |
+| partial | 只索引符合條件的文件 | 查詢條件需能符合索引的過濾範圍 |
 
-### A. 單欄位索引 (Single Field Index)
-```javascript
-// 為 email 建立唯一索引 (不允許重複)
-db.users.createIndex({ email: 1 }, { unique: true });
-```
-
-### B. 複合索引 (Compound Index)
-包含多個欄位的索引，欄位的「先後順序」具有絕對關鍵影響（符合最左前綴原則）。
-```javascript
-// 針對「狀態」與「建立日期」建立複合索引
-db.orders.createIndex({ status: 1, createdAt: -1 });
-```
-
-### C. 多鍵索引 (Multikey Index)
-當索引欄位包含「陣列」時，MongoDB 會自動建立多鍵索引，為陣列中的每一個元素都建立索引節點。
-```javascript
-// tags 是陣列: ["vue", "mongodb", "python"]
-db.articles.createIndex({ tags: 1 });
-```
-
-### D. TTL 索引 (Time To Live 自動過期)
-指定過期時間，MongoDB 後台線程會自動刪除超時文件（非常適合驗證碼、Session、暫存 Token）。
-```javascript
-// 建立 3600 秒 (1小時) 後自動刪除的日誌索引
-db.user_sessions.createIndex(
-  { createdAt: 1 },
-  { expireAfterSeconds: 3600 }
-);
-```
-
----
-
-## 2. 複合索引設計金科玉律：ESR 原則
-
-當一個查詢同時具備「等值查詢」、「排序」與「範圍查詢」時，複合索引欄位的順序應遵循 **ESR 規則**：
-
-$$\mathbf{E} \rightarrow \mathbf{S} \rightarrow \mathbf{R}$$
-
-1. **E - Equality (等值查詢)**：放在最前頭（如 `status: "ACTIVE"`）
-2. **S - Sort (排序欄位)**：緊接在等值之後（如 `sort({ createdAt: -1 })`）
-3. **R - Range (範圍查詢)**：放在最後面（如 `price: { $gte: 100, $lte: 500 }`）
-
-```mermaid
-graph LR
-    E["1. Equality (等值)<br/>{ status: 1 }"] --> S["2. Sort (排序)<br/>{ createdAt: -1 }"]
-    S --> R["3. Range (範圍)<br/>{ price: 1 }"]
-
-    style E fill:#c8e6c9,stroke:#2e7d32;
-    style S fill:#bbdefb,stroke:#1565c0;
-    style R fill:#ffe0b2,stroke:#e65100;
-```
-
-> **為什麼？**  
-> 等值篩選能立即將資料大幅縮小到一個區塊；在此區塊內，利用索引本身的有序性直接滿足 `Sort`，避免在記憶體中進行昂貴的 `SORT` 操作；最後再於排序區間內對 `Range` 進行掃描。
-
----
-
-## 3. 執行計畫分析：`explain("executionStats")`
-
-調優查詢的第一步就是查看資料庫的實際執行報告：
+示範語法：
 
 ```javascript
-db.orders.find({
-  status: "PAID",
-  totalAmount: { $gte: 1000 }
-})
-.sort({ createdAt: -1 })
-.explain("executionStats");
+db.user_stats.createIndex({userId: 1}, {unique: true})
+db.products.createIndex({tags: 1})
+db.sessions.createIndex({createdAt: 1}, {expireAfterSeconds: 3600})
 ```
 
-### 關鍵指標指標解讀：
+應用程式仍需檢查 session 是否到期；TTL 可能尚未刪除文件。
 
-| 指標欄位 | 理想狀態 | 危險警訊 | 意義 |
-| :--- | :--- | :--- | :--- |
-| `stage` | **IXSCAN**、**FETCH** | **COLLSCAN**、**SORT** | `COLLSCAN` 代表全表掃描；`SORT` 代表記憶體額外排序 |
-| `nReturned` | 與 `totalDocsExamined` 接近 | `nReturned` 遠小於 `totalDocsExamined` | 實際回傳的筆數 |
-| `totalDocsExamined` | 越小越好 | 數千甚至數萬筆 | 儲存引擎實際從硬碟讀出檢查的文件數 |
-| `totalKeysExamined` | 越小越好 | 遠大於 `nReturned` | 索引樹中掃描過的鍵值數 |
+## 2. ESR 是起點，不是定律
 
-!!! tip "黃金比率公式"
-    **理想狀態**：`totalDocsExamined` 等於 `nReturned`（讀出的每一筆資料都是最終要的，完全無白工）。  
-    若 `totalDocsExamined` 高達 10,000，但 `nReturned` 只有 5，代表索引設計不良或缺少索引！
+等值（Equality）→ 排序（Sort）→ 範圍（Range）通常能避免額外排序。若範圍條件選擇性極高，ERS 可能減少更多掃描，但要付出排序成本；用自己的查詢比較。
 
----
+```javascript
+db.orders.createIndex({status: 1, createdAt: -1, _id: -1, totalAmount: 1})
+```
 
-## 4. 終極效能：覆蓋查詢 (Covered Query)
+status 先限制範圍，createdAt 和 _id 提供穩定排序，totalAmount 為範圍條件。這個索引不代表所有只查 totalAmount 的請求都有效率。
 
-當查詢所需的全部欄位（包含查詢條件與投影欄位）**都已經存在於索引中**，MongoDB 甚至完全不需要去讀取實際的文件（Document），直接從記憶體中的索引樹返回結果！
+## 3. 可重現的 explain 對照
 
-- 執行計畫特徵：只有 `IXSCAN`，**完全沒有 `FETCH` 階段**。
-- 達成要件：必須顯式在 projection 中排除 `_id`（除非 `_id` 也在索引中）：
-  ```javascript
-  // 建立索引
-  db.users.createIndex({ username: 1, age: 1 });
+```javascript
+--8<-- "examples/mongosh/indexing.js"
+```
 
-  // 覆蓋查詢 (完全免除讀取硬碟文件)
-  db.users.find(
-    { username: "alice" },
-    { username: 1, age: 1, _id: 0 }
-  );
-  ```
+執行方式見[驗證流程](lab.md)。腳本每次重建 10,000 筆固定資料，並確認前後都回傳 10 筆、建索引後檢查的文件更少。後半使用 hint 隔離比較指定索引；實際調校還要觀察不加 hint 時 optimizer 的選擇。
+
+| 指標 | 如何解讀 |
+| --- | --- |
+| nReturned | 最終回傳筆數 |
+| totalDocsExamined | 檢查的文件數，不是實際磁碟讀取次數，資料可能來自快取 |
+| totalKeysExamined | 掃描的索引鍵數，應與回傳量及查詢語意一起比較 |
+| COLLSCAN | 集合掃描；小集合或需讀大部分資料時不一定不好 |
+| IXSCAN／FETCH | 索引掃描／取得文件 |
+| SORT | 額外排序；不一定全在記憶體，需看是否落盤與相關統計 |
+
+不要依單次 executionTimeMillis 判斷優劣；快取、資料量與測量噪音都會影響結果。執行計畫的巢狀結構亦會隨版本與引擎改變。
+
+## 4. 覆蓋查詢
+
+```javascript
+db.products.createIndex({category: 1, price: 1})
+db.products.find(
+  {category: "周邊配備"},
+  {category: 1, price: 1, _id: 0}
+).explain("executionStats")
+```
+
+若條件與投影都能由該索引滿足，可不讀文件，totalDocsExamined=0。索引頁本身仍可能需要磁碟 I/O，所以「覆蓋」不等於完全沒有磁碟讀取。涉及陣列、null 或分片等情境時還有額外限制。
+
+## 練習與解答
+
+**練習：** 覆蓋查詢 totalDocsExamined 小於 nReturned，是否代表資料少讀了？
+
+??? success "解答"
+    不是。索引已提供所需欄位，文件掃描可以是 0。應看正確結果與計畫，不能把 totalDocsExamined=nReturned 當成所有查詢唯一理想狀態。
+
+參考：[ESR](https://www.mongodb.com/docs/manual/tutorial/equality-sort-range-guideline/)、[Explain](https://www.mongodb.com/docs/manual/reference/explain-results/)、[TTL](https://www.mongodb.com/docs/manual/core/index-ttl/)。

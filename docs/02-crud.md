@@ -1,178 +1,128 @@
 # Level 2：核心 CRUD 操作與進階查詢
 
-CRUD 是與資料庫互動的基石。在 MongoDB 中，所有查詢與更新都是以 BSON 物件（鍵值對）表達，具備極高的表現力。
+**前置條件：** 完成[資料初始化](lab.md)，在 mongosh 選擇 `mongo_learning_lab`。本章價格單位均為新台幣分。每次重做可先重跑 seed，避免前一次更新影響預期結果。
 
----
-
-## 1. Create (新增資料)
-
-新增時，MongoDB 會自動為未指定 `_id` 的文件產生唯一的 `ObjectId`。
+## 1. Create 與操作結果
 
 ```javascript
-// 新增單筆
-db.products.insertOne({
-  name: "無線降噪耳機",
-  category: "電子產品",
-  price: 4990,
-  tags: ["藍牙", "音訊", "降噪"],
-  specs: { weight: 250, batteryHours: 30 },
-  stock: 45,
-  createdAt: new Date()
-});
-
-// 批量新增多筆
-db.products.insertMany([
-  { name: "人體工學鍵盤", category: "周邊配備", price: 3200, stock: 12 },
-  { name: "4K 27吋螢幕", category: "周邊配備", price: 9900, stock: 8 },
-  { name: "USB-C 充電器", category: "配件", price: 890, stock: 120 }
-]);
-```
-
----
-
-## 2. Read (查詢與過濾)
-
-`db.collection.find(queryFilter, projection)`
-
-### A. 比較運算子 (Comparison Operators)
-
-| 運算子 | 意義 | 範例 |
-| :--- | :--- | :--- |
-| `$eq` | 等於 | `{ price: { $eq: 4990 } }` 或直接簡寫 `{ price: 4990 }` |
-| `$gt` / `$gte` | 大於 / 大於等於 | `{ price: { $gte: 3000 } }` |
-| `$lt` / `$lte` | 小於 / 小於等於 | `{ stock: { $lte: 10 } }` (庫存吃緊) |
-| `$ne` | 不等於 | `{ category: { $ne: "配件" } }` |
-| `$in` / `$nin` | 存在清單內 / 不在清單內 | `{ category: { $in: ["電子產品", "周邊配備"] } }` |
-
-### B. 邏輯運算子 (Logical Operators)
-
-```javascript
-// 尋找價格 >= 3000 且 庫存 > 10 的商品
-db.products.find({
-  $and: [
-    { price: { $gte: 3000 } },
-    { stock: { $gt: 10 } }
-  ]
-});
-// 簡寫形式 (同一個物件多欄位預設為 AND)
-db.products.find({ price: { $gte: 3000 }, stock: { $gt: 10 } });
-
-// OR 查詢：分類是配件 或 價格低於 1000
-db.products.find({
-  $or: [
-    { category: "配件" },
-    { price: { $lt: 1000 } }
-  ]
-});
-```
-
-### C. 巢狀物件與陣列查詢 (Dot Notation)
-
-- **巢狀欄位**：必須使用雙引號包覆屬性路徑
-  ```javascript
-  // 查詢規格重量小於 300 克的商品
-  db.products.find({ "specs.weight": { $lt: 300 } });
-  ```
-- **陣列包含特定值**：
-  ```javascript
-  // 標籤陣列包含 "藍牙"
-  db.products.find({ tags: "藍牙" });
-  
-  // 標籤必須同時包含 "藍牙" 與 "降噪"
-  db.products.find({ tags: { $all: ["藍牙", "降噪"] } });
-  
-  // 陣列元素是物件時，使用 $elemMatch 精確匹配同一個物件的多個條件
-  db.orders.find({
-    items: {
-      $elemMatch: { productId: "p001", qty: { $gt: 2 } }
-    }
-  });
-  ```
-
-### D. 投影 (Projection) 與分頁排序
-
-```javascript
-// 只抓取 name, price，排除預設的 _id
-db.products.find(
-  { price: { $gt: 1000 } },
-  { name: 1, price: 1, _id: 0 }
-)
-.sort({ price: -1 })   // 1 為升冪，-1 為降冪
-.skip(10)              // 跳過前 10 筆 (第 2 頁)
-.limit(10);            // 取 10 筆
-```
-
----
-
-## 3. Update (修改資料)
-
-!!! warning "嚴禁無運算子更新"
-    在舊版語法中若不小心寫成 `db.collection.update({_id: 1}, {name: "新名稱"})`，整筆文件會被替換成只剩下該欄位。請務必使用 `$set` 等更新運算子！
-
-### A. 常用欄位更新運算子
-
-```javascript
-// 更新單筆：修改價格、增加庫存、記錄最後修改時間
-db.products.updateOne(
-  { name: "無線降噪耳機" },
-  {
-    $set: { price: 4590, onSale: true },
-    $inc: { stock: -1 },                      // 原子累加/扣減 (-1 代表扣庫存)
-    $currentDate: { updatedAt: true }         // 自動賦予當前時間
-  }
-);
-
-// 刪除欄位：$unset
-db.products.updateOne(
-  { name: "無線降噪耳機" },
-  { $unset: { onSale: "" } }
+const demoId = ObjectId("400000000000000000000002");
+db.crud_practice.replaceOne(
+  {_id: demoId},
+  {_id: demoId, name: "練習耳機", price: 10000, stock: 1, tags: ["音訊"]},
+  {upsert: true}
 );
 ```
 
-### B. 陣列欄位更新運算子
+一般新增用 `insertOne`／`insertMany`；此處使用固定 ID 的 replace/upsert 方便重跑。重複 insert 相同 ID 會得到 duplicate key 錯誤。不要用名稱作為理應唯一的更新鍵。
+
+## 2. Read：比較、邏輯與陣列
+
+| 運算子 | 範例 | 含義 |
+| --- | --- | --- |
+| `$gte`／`$lt` | `{price: {$gte: 100000, $lt: 500000}}` | 1000 元以上、5000 元以下 |
+| `$in` | `{category: {$in: ["電子產品", "配件"]}}` | 任一類別 |
+| `$or` | `{$or: [{stock: {$lt: 10}}, {category: "配件"}]}` | 任一條件 |
+| `$ne`／`$nin` | `{category: {$ne: "配件"}}` | 也可能包含欄位不存在的文件 |
+
+同一物件多個欄位預設為 AND：
 
 ```javascript
-// 1. 新增元素到陣列：$push
-db.products.updateOne(
-  { name: "無線降噪耳機" },
-  { $push: { tags: "熱銷" } }
-);
-
-// 2. 避免重複新增 (集合概念)：$addToSet
-db.products.updateOne(
-  { name: "無線降噪耳機" },
-  { $addToSet: { tags: "藍牙" } }   // 若已存在則忽略
-);
-
-// 3. 移除符合條件的元素：$pull
-db.products.updateOne(
-  { name: "無線降噪耳機" },
-  { $pull: { tags: "配件" } }
-);
+db.products.find({price: {$gte: 300000}, stock: {$gt: 10}}, {name: 1, _id: 0})
+// 無線降噪耳機、人體工學鍵盤
+db.products.find({"specs.weight": {$lt: 300}}, {name: 1, _id: 0})
+// 無線降噪耳機
+db.products.find({tags: {$all: ["藍牙", "降噪"]}}, {name: 1, _id: 0})
+// 無線降噪耳機
+db.orders.find({
+  items: {$elemMatch: {productId: ObjectId("100000000000000000000001"), qty: {$gt: 1}}}
+})
+// 訂單 ...001
 ```
 
-### C. Upsert (存在則更新，不存在則插入)
+`$elemMatch` 要求同一陣列元素滿足所有條件。改成兩個 dot notation 條件時，可能分別由不同元素命中。
+
+### null 與欄位不存在
 
 ```javascript
-// 若無此使用者統計記錄則自動建立，若有則累計登入次數
+db.products.countDocuments({discount: null})              // 4：null 或不存在
+db.products.countDocuments({discount: {$type: 10}})        // 1：BSON null
+db.products.countDocuments({discount: {$exists: false}})   // 3：不存在
+```
+
+投影可以選擇欄位或排除欄位；除 `_id` 例外外，不要混用 inclusion 與 exclusion。
+
+## 3. 穩定排序與分頁
+
+```javascript
+db.products.find({}, {name: 1, price: 1})
+  .sort({price: -1, _id: 1}).skip(0).limit(2)
+// 螢幕、耳機
+```
+
+單靠 price 排序，價格相同時順序不穩定；加入唯一的 `_id`。大 offset 的 skip 仍需走過前面的結果，可改用最後一筆的排序鍵：
+
+```javascript
+const firstPage = db.products.find().sort({price: -1, _id: 1}).limit(2).toArray();
+const last = firstPage[firstPage.length - 1];
+db.products.find({$or: [
+  {price: {$lt: last.price}},
+  {price: last.price, _id: {$gt: last._id}}
+]}).sort({price: -1, _id: 1}).limit(2)
+// 鍵盤、充電器
+```
+
+搭配 `{price: -1, _id: 1}` 索引。跨頁期間若價格被修改，仍可能有重複或遺漏；穩定排序不等於資料快照。空的第一頁沒有 last，應停止翻頁。
+
+## 4. Update：原子性與業務條件
+
+```javascript
+const stockFilter = {_id: demoId, stock: {$gte: 1}};
+db.crud_practice.updateOne(stockFilter, {$inc: {stock: -1}, $currentDate: {updatedAt: true}})
+// matchedCount: 1
+db.crud_practice.updateOne(stockFilter, {$inc: {stock: -1}})
+// matchedCount: 0，不能扣成負數
+```
+
+單文件更新是原子的，但單靠 `$inc` 不會檢查庫存是否足夠。應把前置條件放進 filter，並檢查 matchedCount。matchedCount 為 1、modifiedCount 為 0 也可能只是新舊值相同，不能一概視為失敗。
+
+```javascript
+db.crud_practice.updateOne({_id: demoId}, {$set: {price: 9900, onSale: true}})
+db.crud_practice.updateOne({_id: demoId}, {$unset: {onSale: ""}})
+db.crud_practice.updateOne({_id: demoId}, {$push: {tags: "熱銷"}})
+db.crud_practice.updateOne({_id: demoId}, {$addToSet: {tags: "音訊"}})
+db.crud_practice.updateOne({_id: demoId}, {$pull: {tags: "熱銷"}})
+```
+
+`updateOne` 的更新文件使用運算子，或合法的更新 pipeline；完整替換請明確使用 `replaceOne`，並理解未提供的欄位會被移除。不要把完整 API 請求物件直接當成更新文件。
+
+### Upsert 與唯一性
+
+```javascript
+db.user_stats.createIndex({userId: 1}, {unique: true})
 db.user_stats.updateOne(
-  { userId: "u123" },
-  {
-    $inc: { loginCount: 1 },
-    $set: { lastLogin: new Date() }
-  },
-  { upsert: true }
-);
+  {userId: ObjectId("200000000000000000000001")},
+  {$inc: {loginCount: 1}, $set: {lastLogin: new Date()}, $setOnInsert: {createdAt: new Date()}},
+  {upsert: true}
+)
 ```
 
----
+唯一索引才負責約束 userId 唯一；實務上也要處理併發 upsert 可能出現的 duplicate key 錯誤。
 
-## 4. Delete (刪除資料)
+## 5. Delete 與驗證
 
 ```javascript
-// 刪除單筆
-db.products.deleteOne({ _id: ObjectId("64f1a2b3c4d5e6f7a8b9c0d1") });
-
-// 條件批量刪除 (如刪除庫存為 0 且已下架的商品)
-db.products.deleteMany({ stock: 0, status: "archived" });
+db.crud_practice.deleteOne({_id: demoId}) // deletedCount: 1
 ```
+
+`deleteMany({})` 會刪除整個集合內的文件；使用前先以相同條件 find/count，確認目標。
+
+[實作環境](lab.md)的 `crud-checks.js` 驗證 null 語意、增查改刪、庫存不足與 regex 字面搜尋，不更動商品資料。
+
+## 練習與解答
+
+**練習：** 為什麼「先讀 stock，再無條件扣庫存」在兩個請求同時發生時不可靠？
+
+??? success "解答"
+    兩個請求可能都讀到 stock=1，之後各扣一次而變成 -1。使用同一個 updateOne 的 `stock: {$gte: 1}` 條件，讓檢查與扣減一起原子執行；第二次更新不命中。
+
+參考：[Atomicity](https://www.mongodb.com/docs/manual/core/write-operations-atomicity/)、[Query null](https://www.mongodb.com/docs/manual/tutorial/query-for-null-fields/)。

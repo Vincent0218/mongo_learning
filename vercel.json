@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "pip install --break-system-packages -r requirements.txt && mkdocs build",
+  "buildCommand": "pip install --break-system-packages -r requirements.txt && mkdocs build --strict",
   "outputDirectory": "site",
   "cleanUrls": true
 }

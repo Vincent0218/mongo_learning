@@ -1,238 +1,56 @@
-# Level 6：.NET (C#) 實戰整合 (C# + MongoDB)
+# Level 6：.NET C# 實戰整合
 
-在 .NET 生態系中，MongoDB 官方維護了極為優秀且成熟的 **`MongoDB.Driver`**。它具備強型別 POCO（Plain Old CLR Object）自動對映、LINQ 查詢表達式支援，以及現代非同步（`async/await`）架構。
+**前置條件：** [一般與交易環境](lab.md)已初始化。目標框架 .NET 8、MongoDB.Driver 3.5.0；套件固定在 `examples/dotnet/MongoLearning.csproj` 與 packages.lock.json。
 
----
+## 1. 執行完整程式
 
-## 1. 必備套件安裝 (NuGet)
-
-在 .NET 8 / 9 專案中，透過 .NET CLI 安裝官方核心驅動：
-
-```bash
-dotnet add package MongoDB.Driver
+```powershell
+dotnet run --project examples/dotnet
+dotnet run --project examples/dotnet -- --check
 ```
 
----
+第一個命令用 LINQ 讀取三筆商品並驗證 CRUD 與字面 regex。第二個命令連到 27018，七種交易情境全部應顯示 PASS；若發生非預期錯誤會以失敗結束。
 
-## 2. 實體模型對映 (POCO & BSON Attributes)
+## 2. POCO 與欄位約定
 
-MongoDB Driver 能自動將 C# 類別轉換為 BSON 文件。透過 Attribute 標註，能完美控制欄位名稱與 ObjectId 的型別轉換：
+BsonElement 決定儲存欄位名稱，Id 使用 ObjectId，price/balance 使用 long（新台幣分）。BsonIgnoreExtraElements 允許讀取共用資料中本例不需要的欄位。若 API 以字串傳 ID，應在入口 ObjectId.TryParse 並拒絕不合法輸入。
+
+DateTime 儲存為 UTC。若金額改用 decimal，應明確定義 BSON Decimal128 映射與跨語言轉換；本課程統一用整數分。
+
+## 3. 可執行 CRUD、LINQ 與交易
 
 ```csharp
-using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
-
-public class Product
-{
-    // 自動將 MongoDB 的 ObjectId 轉換為 C# 的 string
-    [BsonId]
-    [BsonRepresentation(BsonType.ObjectId)]
-    public string? Id { get; set; }
-
-    [BsonElement("name")]
-    public string Name { get; set; } = string.Empty;
-
-    [BsonElement("category")]
-    public string Category { get; set; } = string.Empty;
-
-    [BsonElement("price")]
-    public decimal Price { get; set; }
-
-    [BsonElement("stock")]
-    public int Stock { get; set; }
-
-    [BsonElement("tags")]
-    public List<string> Tags { get; set; } = new();
-
-    [BsonElement("createdAt")]
-    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-}
+--8<-- "examples/dotnet/Program.cs"
 ```
 
-!!! tip "忽略未知欄位"
-    可在類別上方加上 `[BsonIgnoreExtraElements]`，避免當資料庫中的欄位比 C# 模型多時拋出反序列化例外。
+LINQ 使用 MongoDB.Driver.Linq 的擴充方法，查詢會由 Driver 轉成資料庫操作；不是所有 .NET 方法都可翻譯。Filter/Update Builders 適合明確表達條件更新。範例傳入 CancellationToken，讓操作可以配合服務的取消期限。
 
----
+## 4. Web 服務的 Client 生命週期
 
-## 3. ASP.NET Core 依賴注入 (DI) 最佳實踐
-
-!!! warning "MongoClient 生命週期守則"
-    **`MongoClient` 物件內部維護了連線池 (Connection Pool)，在應用程式生命週期內必須註冊為「Singleton (單例模式)」！** 切勿在每次請求時重複 `new MongoClient()`，否則會迅速耗盡 TCP 連線。
-
-在 `appsettings.json` 中配置連線資訊：
-```json
-{
-  "MongoSettings": {
-    "ConnectionString": "mongodb://admin:password123@localhost:27017/?authSource=admin",
-    "DatabaseName": "store_db"
-  }
-}
-```
-
-在 `Program.cs` 註冊服務：
-```csharp
-builder.Services.AddSingleton<IMongoClient>(sp =>
-{
-    var connectionString = builder.Configuration["MongoSettings:ConnectionString"];
-    return new MongoClient(connectionString);
-});
-
-builder.Services.AddScoped(sp =>
-{
-    var client = sp.GetRequiredService<IMongoClient>();
-    var dbName = builder.Configuration["MongoSettings:DatabaseName"];
-    return client.GetDatabase(dbName);
-});
-```
-
----
-
-## 4. 強型別 CRUD 實戰
-
-### A. 新增 (Create)
-```csharp
-public async Task CreateProductAsync(IMongoDatabase db, Product product)
-{
-    var collection = db.GetCollection<Product>("products");
-    await collection.InsertOneAsync(product);
-    Console.WriteLine($"成功建立商品，ID 為：{product.Id}");
-}
-```
-
-### B. 讀取 (Read) - 兩種寫法：強型別 Builders 與 LINQ
+以下為 ASP.NET Core 設定片段；此課程的執行入口是 console，不額外建立 Web 服務：
 
 ```csharp
-var collection = db.GetCollection<Product>("products");
-
-// 寫法 1：使用 Builders 強型別過濾器 (效能極佳、語意精確)
-var filterBuilder = Builders<Product>.Filter;
-var filter = filterBuilder.Eq(x => x.Category, "周邊配備") &
-             filterBuilder.Gte(x => x.Price, 1000);
-
-var products = await collection.Find(filter)
-                               .SortByDescending(x => x.Price)
-                               .Skip(0)
-                               .Limit(10)
-                               .ToListAsync();
-
-// 寫法 2：使用 LINQ 查詢語法 (C# 開發者最熟悉的語法)
-var linqProducts = await collection.AsQueryable()
-                                   .Where(p => p.Category == "周邊配備" && p.Price >= 1000)
-                                   .OrderByDescending(p => p.Price)
-                                   .Take(10)
-                                   .ToListAsync();
+builder.Services.AddSingleton<IMongoClient>(_ =>
+    new MongoClient(builder.Configuration.GetConnectionString("Mongo")));
+builder.Services.AddSingleton<IMongoDatabase>(sp =>
+    sp.GetRequiredService<IMongoClient>().GetDatabase("mongo_learning_lab"));
 ```
 
-### C. 更新 (Update)
-```csharp
-// 原子更新：調降價格並扣減庫存
-var filter = Builders<Product>.Filter.Eq(x => x.Id, productId);
-var update = Builders<Product>.Update
-    .Set(x => x.Price, 2990)
-    .Inc(x => x.Stock, -1)
-    .AddToSet(x => x.Tags, "促銷中");
+共用 Client 的連線池，不要每次請求建立一個。正式 URI 從設定或祕密管理載入，不把密碼放進版本庫。
 
-var result = await collection.UpdateOneAsync(filter, update);
-Console.WriteLine($"修改成功，影響筆數: {result.ModifiedCount}");
-```
+## 5. 交易與封裝取捨
 
-### D. 刪除 (Delete)
-```csharp
-var deleteFilter = Builders<Product>.Filter.Eq(x => x.Id, productId);
-await collection.DeleteOneAsync(deleteFilter);
-```
+WithTransactionAsync 的 callback 可能重試；不要吞掉資料庫例外或在其中發送外部通知。matchedCount=0 是業務失敗，需要主動拋例外才能回滾。測試中的「收款帳戶不存在」會先扣款再失敗，確認交易能撤銷扣款。
 
----
+本例用 Transfers 封裝完整業務操作。若另加 Repository，不宜只提供無上限 GetAll 或把所有更新都包成 ReplaceOne；應保留有界查詢、條件更新、session 及取消能力。ReplaceOne 會移除未傳入的欄位；ModifiedCount=0 也可能只是值相同。
 
-## 5. 多文件交易 (ACID Transactions in C#)
+金額與加總假設在 long 範圍內。重複業務請求、授權和金額上限需另外設計；交易原子性不會自動處理這些需求。
 
-當需要在多個集合間維護交易一致性時，使用 `IClientSessionHandle`：
+## 練習與解答
 
-```csharp
-public async Task TransferBalanceAsync(IMongoClient client, string fromId, string toId, decimal amount)
-{
-    using var session = await client.StartSessionAsync();
+**練習：** 已查出帳戶存在，是否能省略入帳後的 MatchedCount？
 
-    // 透過 WithTransactionAsync 執行交易 (自動處理重試與例外復原)
-    await session.WithTransactionAsync(async (s, cancellationToken) =>
-    {
-        var users = client.GetDatabase("bank_db").GetCollection<User>("users");
+??? success "解答"
+    不應省略。更新結果才反映該次寫入是否命中；未命中並不會自動拋例外。保留檢查才能讓交易中的業務條件失敗觸發回滾。
 
-        // 1. 扣除轉出帳戶餘額
-        var deductFilter = Builders<User>.Filter.Eq(u => u.Id, fromId) &
-                           Builders<User>.Filter.Gte(u => u.Balance, amount);
-        var deductUpdate = Builders<User>.Update.Inc(u => u.Balance, -amount);
-        var deductRes = await users.UpdateOneAsync(s, deductFilter, deductUpdate, cancellationToken: cancellationToken);
-
-        if (deductRes.ModifiedCount == 0)
-        {
-            throw new InvalidOperationException("餘額不足或帳戶不存在，交易中斷！");
-        }
-
-        // 2. 增加轉入帳戶餘額
-        var addFilter = Builders<User>.Filter.Eq(u => u.Id, toId);
-        var addUpdate = Builders<User>.Update.Inc(u => u.Balance, amount);
-        await users.UpdateOneAsync(s, addFilter, addUpdate, cancellationToken: cancellationToken);
-
-        return "交易成功";
-    });
-}
-```
-
----
-
-## 6. 乾淨架構：Repository Pattern 實戰封裝
-
-在實際 Web API 專案中，通常會以泛型 Repository 封裝底層集合操作：
-
-```csharp
-public interface IRepository<T> where T : class
-{
-    Task<T?> GetByIdAsync(string id);
-    Task<IEnumerable<T>> GetAllAsync();
-    Task CreateAsync(T entity);
-    Task<bool> UpdateAsync(string id, T entity);
-    Task<bool> DeleteAsync(string id);
-}
-
-public class MongoRepository<T> : IRepository<T> where T : class
-{
-    private readonly IMongoCollection<T> _collection;
-
-    public MongoRepository(IMongoDatabase database, string collectionName)
-    {
-        _collection = database.GetCollection<T>(collectionName);
-    }
-
-    public async Task<T?> GetByIdAsync(string id)
-    {
-        var filter = Builders<T>.Filter.Eq("_id", new ObjectId(id));
-        return await _collection.Find(filter).FirstOrDefaultAsync();
-    }
-
-    public async Task<IEnumerable<T>> GetAllAsync()
-    {
-        return await _collection.Find(_ => true).ToListAsync();
-    }
-
-    public async Task CreateAsync(T entity)
-    {
-        await _collection.InsertOneAsync(entity);
-    }
-
-    public async Task<bool> UpdateAsync(string id, T entity)
-    {
-        var filter = Builders<T>.Filter.Eq("_id", new ObjectId(id));
-        var result = await _collection.ReplaceOneAsync(filter, entity);
-        return result.ModifiedCount > 0;
-    }
-
-    public async Task<bool> DeleteAsync(string id)
-    {
-        var filter = Builders<T>.Filter.Eq("_id", new ObjectId(id));
-        var result = await _collection.DeleteOneAsync(filter);
-        return result.DeletedCount > 0;
-    }
-}
-```
+參考：[C# transactions](https://www.mongodb.com/docs/drivers/csharp/current/fundamentals/transactions/)。
