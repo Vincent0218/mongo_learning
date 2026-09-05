@@ -1,17 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="36" height="36">
   <defs>
-    <linearGradient id="mongoGreenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <!-- Subtle drop shadow for depth -->
+    <filter id="badgeShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#000000" flood-opacity="0.25" />
+    </filter>
+    <!-- Vibrant MongoDB Green Gradient -->
+    <linearGradient id="mongoGreen" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#00ED64" />
       <stop offset="60%" stop-color="#13AA52" />
       <stop offset="100%" stop-color="#00684A" />
     </linearGradient>
-    <linearGradient id="mongoDarkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <!-- Left Leaf Shadow for 3D depth -->
+    <linearGradient id="mongoLeafDark" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#00684A" />
       <stop offset="100%" stop-color="#023430" />
     </linearGradient>
   </defs>
-  <!-- Full Leaf Outline / Right Side -->
-  <path fill="url(#mongoGreenGrad)" d="M17.193 9.555c-1.264-5.58-4.252-7.414-4.573-8.115-.28-.394-.53-.954-.735-1.44-.036.495-.055.685-.523 1.184-.723.566-4.438 3.682-4.74 10.02-.282 5.912 4.27 9.435 4.888 9.884l.07.05A74 74 0 0 1 11.91 24h.481a29 29 0 0 1 .51-3.07c.417-.308 4.708-3.584 4.292-11.375z"/>
-  <!-- Left Side Shadow for 3D Leaf Effect -->
-  <path fill="url(#mongoDarkGrad)" opacity="0.85" d="M11.83 19.585s-.027-.018-.08-.056c-.05-.035-3.92-2.823-3.665-7.91.24-4.774 2.87-7.394 3.737-8.18.008.283.02.585.034.908.107 2.457.41 9.387-.026 15.238l.015.02z"/>
+
+  <!-- 1. Pure White Circular Badge (徹底解決綠底與深色背景下的對比度問題) -->
+  <circle cx="18" cy="18" r="16.5" fill="#FFFFFF" filter="url(#badgeShadow)" />
+
+  <!-- 2. MongoDB Official Leaf Centered (Scale & Translate to fit inside the 36x36 circle) -->
+  <g transform="translate(7.2, 5.2) scale(0.9)">
+    <!-- Main Leaf Body (Bright Vivid Green) -->
+    <path fill="url(#mongoGreen)" d="M17.193 9.555c-1.264-5.58-4.252-7.414-4.573-8.115-.28-.394-.53-.954-.735-1.44-.036.495-.055.685-.523 1.184-.723.566-4.438 3.682-4.74 10.02-.282 5.912 4.27 9.435 4.888 9.884l.07.05A74 74 0 0 1 11.91 24h.481a29 29 0 0 1 .51-3.07c.417-.308 4.708-3.584 4.292-11.375z"/>
+    <!-- Left Half Contrast Arc (Dark Forest Accent) -->
+    <path fill="url(#mongoLeafDark)" opacity="0.8" d="M11.83 19.585s-.027-.018-.08-.056c-.05-.035-3.92-2.823-3.665-7.91.24-4.774 2.87-7.394 3.737-8.18.008.283.02.585.034.908.107 2.457.41 9.387-.026 15.238l.015.02z"/>
+  </g>
 </svg>
