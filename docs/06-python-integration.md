@@ -21,17 +21,21 @@ price 使用整數分，避免用 binary float 累計金額。其他需要小數
 
 ## 3. 同步 CRUD 與非同步讀取
 
-以下直接引用可執行檔，包含完整 imports、入口與交易函式：
+以下為可直接執行的完整程式碼（已封裝模型、CRUD、正則包含搜尋與交易操作）：
 
-```python
---8<-- "examples/python/demo.py"
-```
+??? example "點擊展開查看完整原始碼：examples/python/demo.py"
+    ```python
+    --8<-- "examples/python/demo.py"
+    ```
 
 MongoClient 共用連線池；長生命週期服務應在應用程式啟停時建立／關閉，而不是每個請求建立 client。AsyncMongoClient 應在同一 event loop 使用；find 回傳 cursor，不需要 await，真正取得結果或關閉非同步資源才需要 await。
 
 本章使用 PyMongo Async。Motor 已棄用，新教學不再以 Motor 為主線；遷移時仍需測試工作負載，不能保證非同步一定比同步快。[官方遷移指南](https://www.mongodb.com/docs/languages/python/pymongo-driver/current/reference/migration/)
 
 ## 4. 交易的業務條件
+
+!!! info "交易環境連線提醒"
+    多文件 ACID 交易**僅能**在 [交易環境 (Replica Set)](lab.md#2-replica-set)（連接埠 `27018`，免帳密，帶 `replicaSet=rs0&directConnection=true`）執行。一般環境（`27017` Standalone）不支援交易操作。
 
 transfer 依序檢查：
 

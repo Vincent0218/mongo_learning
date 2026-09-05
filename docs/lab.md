@@ -57,6 +57,15 @@ mongodb://127.0.0.1:27018/?replicaSet=rs0&directConnection=true
 !!! warning "僅供本機練習"
     交易環境沒有啟用認證，僅將連接埠綁定 loopback；同機程式及相同 Docker 網路仍可連線。不要公開此環境。單節點 replica set 能練習交易，但不能演練高可用；正式副本集還需認證、TLS、內部認證與多個節點。
 
+### 雙環境連線特徵速查表
+
+| 環境分類 | 監聽埠 (Port) | 認證 (Auth) | 適用場景與章節 | 連線字串 (Connection URI) 關鍵特徵 |
+| :--- | :--- | :--- | :--- | :--- |
+| **一般環境** (Standalone) | `27017` | `admin` / `password123` | Level 1~5 CRUD、聚合、索引 | `mongodb://admin:password123@127.0.0.1:27017/?authSource=admin` |
+| **交易環境** (Replica Set) | `27018` | 無 (免密碼) | Level 6 多文件 ACID 交易 | `mongodb://127.0.0.1:27018/?replicaSet=rs0&directConnection=true` |
+
+> 💡 **防踩坑提示**：多文件交易在 MongoDB 中**嚴格要求**在 Replica Set 或 Sharded Cluster 執行。若使用 `27017` 執行交易會收到 `Transaction numbers are only allowed on a replica set member` 錯誤。
+
 ## 3. 資料契約
 
 所有腳本固定使用 `mongo_learning_lab`，不會從 URI 推導目標資料庫。一般與交易環境各自有一份資料。
@@ -78,7 +87,13 @@ mongodb://127.0.0.1:27018/?replicaSet=rs0&directConnection=true
 
 ## 4. 驗證命令
 
-安裝三種語言工具並初始化兩個環境後，可執行 `./scripts/verify.ps1` 一次完成本機檢查，任一步失敗即停止。下列為分開執行的命令；PowerShell 執行外部命令失敗後不一定自動停止，請確認每步的結果。中文輸出亂碼時，Python 可加上 `-X utf8`。
+專案已內建 `./scripts/verify.ps1` 一鍵驗證腳本，會在完成各項檢查後自動退出，並防止 PowerShell 在不同版本（如 Windows PowerShell 5.1 與 pwsh 7）下的引號跳脫差異問題。推薦直接執行：
+
+```powershell
+./scripts/verify.ps1
+```
+
+若欲手動逐步執行驗證，可依序在 PowerShell 執行下列分段指令（中文輸出若遇編碼問題，Python 可加上 `-X utf8`）：
 
 ```powershell
 docker compose exec -T mongodb mongosh -u admin -p password123 --authenticationDatabase admin --quiet /examples/crud-checks.js

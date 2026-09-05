@@ -28,6 +28,16 @@ db.sessions.createIndex({createdAt: 1}, {expireAfterSeconds: 3600})
 
 等值（Equality）→ 排序（Sort）→ 範圍（Range）通常能避免額外排序。若範圍條件選擇性極高，ERS 可能減少更多掃描，但要付出排序成本；用自己的查詢比較。
 
+```mermaid
+graph LR
+    E["1. Equality (等值)<br/>縮小候選集合"] --> S["2. Sort (排序)<br/>藉由索引順序免除記憶體排序"]
+    S --> R["3. Range (範圍)<br/>在有序範圍內掃描邊界"]
+
+    style E fill:#c8e6c9,stroke:#2e7d32;
+    style S fill:#bbdefb,stroke:#1565c0;
+    style R fill:#ffe0b2,stroke:#e65100;
+```
+
 ```javascript
 db.orders.createIndex({status: 1, createdAt: -1, _id: -1, totalAmount: 1})
 ```

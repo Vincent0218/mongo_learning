@@ -57,8 +57,9 @@ markdown_extensions:
 
 nav:
   - 首頁總覽: index.md
-  - 實作環境與驗證: lab.md
-  - 驗證紀錄: verification.md
+  - 實作環境與驗證:
+      - 實作環境與資料合約: lab.md
+      - 測試與驗證紀錄: verification.md
   - 基礎入門:
       - Level 1 觀念與環境架設: 01-basics.md
       - Level 2 核心 CRUD 操作: 02-crud.md

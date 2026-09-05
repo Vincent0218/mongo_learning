@@ -29,11 +29,17 @@ Product 的 Price 是 int64（新台幣分），CreatedAt 映射到 createdAt。
 
 ## 3. 完整 CRUD、連線與交易程式
 
-```go
---8<-- "examples/go/main.go"
-```
+以下為可直接執行的完整程式碼（包含 BSON 映射、非同步連線池管理、CRUD 檢查與交易實作）：
+
+??? example "點擊展開查看完整原始碼：examples/go/main.go"
+    ```go
+    --8<-- "examples/go/main.go"
+    ```
 
 Client 可供 goroutine 共用；session 不可跨 goroutine 同時操作。Ping 失敗會關閉 client，cursor 與 client 也有關閉流程。資料庫層回傳 error，只有入口決定結束程式，不在函式中 log.Fatal。
+
+!!! info "交易環境連線提醒"
+    多文件 ACID 交易**僅能**在 [交易環境 (Replica Set)](lab.md#2-replica-set)（連接埠 `27018`，免帳密，帶 `replicaSet=rs0&directConnection=true`）執行。一般環境（`27017` Standalone）不支援交易操作。
 
 扣款 filter 同時檢查餘額，兩次更新都檢查 MatchedCount；原始 MongoDB error 原樣回傳，以保留 Driver 重試所需的標記。callback 可重跑，應避免外部副作用。金額與餘額假設在 int64 範圍內；正式系統另需上限與業務冪等性規則。
 

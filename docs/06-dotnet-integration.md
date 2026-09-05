@@ -19,9 +19,12 @@ DateTime 儲存為 UTC。若金額改用 decimal，應明確定義 BSON Decimal1
 
 ## 3. 可執行 CRUD、LINQ 與交易
 
-```csharp
---8<-- "examples/dotnet/Program.cs"
-```
+以下為可直接執行的完整程式碼（包含 POCO 定義、LINQ 查詢與完整交易驗證）：
+
+??? example "點擊展開查看完整原始碼：examples/dotnet/Program.cs"
+    ```csharp
+    --8<-- "examples/dotnet/Program.cs"
+    ```
 
 LINQ 使用 MongoDB.Driver.Linq 的擴充方法，查詢會由 Driver 轉成資料庫操作；不是所有 .NET 方法都可翻譯。Filter/Update Builders 適合明確表達條件更新。範例傳入 CancellationToken，讓操作可以配合服務的取消期限。
 
@@ -39,6 +42,9 @@ builder.Services.AddSingleton<IMongoDatabase>(sp =>
 共用 Client 的連線池，不要每次請求建立一個。正式 URI 從設定或祕密管理載入，不把密碼放進版本庫。
 
 ## 5. 交易與封裝取捨
+
+!!! info "交易環境連線提醒"
+    多文件 ACID 交易**僅能**在 [交易環境 (Replica Set)](lab.md#2-replica-set)（連接埠 `27018`，免帳密，帶 `replicaSet=rs0&directConnection=true`）執行。一般環境（`27017` Standalone）不支援交易操作。
 
 WithTransactionAsync 的 callback 可能重試；不要吞掉資料庫例外或在其中發送外部通知。matchedCount=0 是業務失敗，需要主動拋例外才能回滾。測試中的「收款帳戶不存在」會先扣款再失敗，確認交易能撤銷扣款。
 
