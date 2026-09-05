@@ -47,11 +47,21 @@ db.orders.find({
 
 ### null 與欄位不存在
 
+這是 MongoDB 最經典的 **「null 查詢陷阱」**。在共用種子資料的 4 筆商品中：
+- **商品 1（耳機）**：明確寫入了 `{discount: null}`（值為 null，共 1 筆）
+- **商品 2、3、4**：完全沒有 `discount` 欄位（欄位不存在，共 3 筆）
+
 ```javascript
-db.products.countDocuments({discount: null})              // 4：null 或不存在
-db.products.countDocuments({discount: {$type: 10}})        // 1：BSON null
-db.products.countDocuments({discount: {$exists: false}})   // 3：不存在
+// 1. 陷阱：{discount: null} 會同時匹配「值為 null」與「欄位完全不存在」的文檔（1 + 3 = 4）
+db.products.countDocuments({discount: null})              // 回傳 4：值為 null 或欄位不存在
+
+// 2. 正解 A：使用 BSON Type 10（即 null 型別，或寫 {$type: "null"}）精準只查「真的是 null」
+db.products.countDocuments({discount: {$type: 10}})        // 回傳 1：僅商品 1（耳機）
+
+// 3. 正解 B：使用 {$exists: false} 精準只查「根本沒有該欄位」
+db.products.countDocuments({discount: {$exists: false}})   // 回傳 3：商品 2、3、4
 ```
+
 
 投影可以選擇欄位或排除欄位；除了 `_id` 可例外排除之外，投影時不要同時混用包含（inclusion）與排除（exclusion）。
 
