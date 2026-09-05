@@ -255,9 +255,65 @@ db.crud_practice.deleteOne({_id: demoId}) // deletedCount: 1
 
 ## 練習與解答
 
-**練習：** 為什麼「先讀 stock，再無條件扣庫存」在兩個請求同時發生時不可靠？
+**實戰思考題：**  
+假設熱門商品目前在資料庫中**僅剩最後 1 件庫存（`stock = 1`）**。  
+此時顧客 A 與顧客 B 在同一毫秒內同時點擊「立即購買」。很多初學者後端會寫出以下邏輯：
 
-??? success "解答"
-    兩個請求可能都讀到 stock=1，之後各扣一次而變成 -1。使用同一個 updateOne 的 `stock: {$gte: 1}` 條件，讓檢查與扣減一起原子執行；第二次更新不命中。
+```javascript
+// ❌ 直覺卻致命的寫法：先讀取、再程式判斷、再扣減
+const product = await db.products.findOne({ _id: prodId });
 
-參考：[Atomicity](https://www.mongodb.com/docs/manual/core/write-operations-atomicity/)、[Query null](https://www.mongodb.com/docs/manual/tutorial/query-for-null-fields/)。
+if (product.stock >= 1) {
+  // 檢查通過，發送更新指令扣減庫存
+  await db.products.updateOne({ _id: prodId }, { $inc: { stock: -1 } });
+  console.log("扣款成功，準備出貨！");
+} else {
+  console.log("庫存不足！");
+}
+```
+
+**問題：** 為什麼上述「先讀後扣」的邏輯在高併發下完全不可靠？底層會引發什麼嚴重災難？
+
+??? success "點擊查看解答與時序拆解"
+    ### 1. 致命缺陷：TOCTOU 競爭條件（Time-of-Check to Time-of-Use）
+    在分散式與多執行緒環境中，「**檢查庫存（Check）**」與「**執行扣庫存（Use）**」之間存在微秒級的時間差。底層交錯時序如下：
+
+    | 時間序 | 顧客 A 的執行緒 | 顧客 B 的執行緒 | 資料庫實際 stock |
+    | :--- | :--- | :--- | :--- |
+    | $T_1$ | 執行 `findOne`，讀到 `stock: 1` | | `1` |
+    | $T_2$ | *(正在進行商業邏輯或網路傳輸)* | 執行 `findOne`，**也讀到 `stock: 1`** | `1` |
+    | $T_3$ | 通過 `if (stock >= 1)`，執行 `$inc: -1` | 通過 `if (stock >= 1)` 檢查 | `0`（顧客 A 扣減） |
+    | $T_4$ | 提示顧客 A 購買成功 | 執行 `$inc: -1`，**庫存被扣成負數** | **`-1`（超賣發生！）** |
+
+    💥 **慘烈後果**：兩位顧客都顯示扣款成功，但倉庫只有 1 件商品，引發嚴重的**電商超賣（Overselling）客訴與財務損失**！
+
+    ---
+
+    ### 2. 正確解法：原子條件式更新（Atomic Conditional Update）
+    不要在應用程式記憶體中做判斷，而是**將業務條件直接下推到 MongoDB 的查詢 Filter 中**，讓檢查與扣減在資料庫引擎層「一次原子完成」：
+
+    ```javascript
+    // ✅ 正確做法：利用 Filter 保證原子扣減
+    const result = await db.products.updateOne(
+      { 
+        _id: prodId, 
+        stock: { $gte: 1 } // ⭐️ 關鍵：只有當庫存仍大於等於 1 時才允許扣減！
+      },
+      { 
+        $inc: { stock: -1 },
+        $currentDate: { updatedAt: true }
+      }
+    );
+
+    // 依據 matchedCount 判斷是否真正搶到庫存
+    if (result.matchedCount === 1) {
+      console.log("搶購成功，庫存扣減完成！");
+    } else {
+      // 若已被別人搶先扣走，條件不符合，matchedCount 為 0
+      throw new Error("手腳太慢！商品已被搶購一空。");
+    }
+    ```
+    - 顧客 A 扣減時：`stock` 為 1，符合條件，`matchedCount: 1`，庫存變 0。
+    - 顧客 B 扣減時：`stock` 已為 0，不符合 `{stock: {$gte: 1}}`，MongoDB 根本不執行更新，直接回傳 `matchedCount: 0`！
+    - **保證庫存絕對不可能被扣成負數，彻底杜絕超賣！**
+
