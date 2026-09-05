@@ -35,7 +35,8 @@ flowchart TD
 | **Level 3** | [聚合管道 Aggregation](03-aggregation.md) | Pipeline 概念、`$match`, `$group`, `$unwind`, `$lookup` 關聯、報表分析 | 3~4 天 |
 | **Level 4** | [索引與效能調校](04-indexing.md) | 複合索引、ESR 設計準則、`explain("executionStats")` 執行計畫解讀 | 2~3 天 |
 | **Level 5** | [資料模型設計](05-data-modeling.md) | 內嵌（Embedding）vs 參照（Referencing）權衡、電商與社群常見設計模式 | 3~4 天 |
-| **Level 6** | [Python 實戰整合](06-python-integration.md) | 使用 `uv` 與 `.venv`、PyMongo、Motor（非同步）、Pydantic 驗證、ACID 交易 | 3~4 天 |
+| **Level 6** | [Python 實戰整合](06-python-integration.md) | 使用 `uv` 與 `.venv`、PyMongo、Motor（非同步）、Pydantic 驗證、ACID 交易 | 2~3 天 |
+| **Level 6** | [.NET (C#) 實戰整合](06-dotnet-integration.md) | 官方 `MongoDB.Driver`、POCO BSON 標記、LINQ 查詢、強型別 Builders、Repository 封裝 | 2~3 天 |
 | **Level 7** | [叢集架構與維運](07-architecture.md) | 副本集（Replica Set）高可用自動容錯、分片（Sharding）水平擴展、備份還原 | 2~3 天 |
 
 ---
