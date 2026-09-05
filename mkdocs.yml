@@ -1,4 +1,5 @@
 site_name: MongoDB 實戰升級指南
+site_url: https://mongo-learning.vercel.app/
 site_description: 由淺入深的 MongoDB 核心技術與架構實戰全攻略
 site_author: Antigravity Pair Programmer
 copyright: Copyright &copy; 2026

@@ -1,8 +1,29 @@
 {% extends "base.html" %}
 
 {% block extrahead %}
+  <!-- iOS Web App & 主畫面圖標 -->
   <link rel="apple-touch-icon" sizes="180x180" href="{{ 'assets/apple-touch-icon.png' | url }}">
   <meta name="apple-mobile-web-app-title" content="MongoDB指南">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- Open Graph / Facebook / LINE / Slack 預覽卡片 -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{ config.site_name }}">
+  <meta property="og:title" content="{% if page.title and not page.is_homepage %}{{ page.title }} - {{ config.site_name }}{% else %}{{ config.site_name }} - {{ config.site_description }}{% endif %}">
+  <meta property="og:description" content="{% if page.meta and page.meta.description %}{{ page.meta.description }}{% else %}{{ config.site_description }}{% endif %}">
+  <meta property="og:url" content="{{ page.canonical_url or config.site_url }}">
+  <meta property="og:image" content="{{ config.site_url }}assets/og-image.png">
+  <meta property="og:image:secure_url" content="{{ config.site_url }}assets/og-image.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="{{ config.site_name }} - 封面預覽">
+
+  <!-- Twitter Card / X / Telegram 預覽卡片 -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{% if page.title and not page.is_homepage %}{{ page.title }} - {{ config.site_name }}{% else %}{{ config.site_name }} - {{ config.site_description }}{% endif %}">
+  <meta name="twitter:description" content="{% if page.meta and page.meta.description %}{{ page.meta.description }}{% else %}{{ config.site_description }}{% endif %}">
+  <meta name="twitter:image" content="{{ config.site_url }}assets/og-image.png">
 {% endblock %}
+
