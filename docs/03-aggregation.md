@@ -98,6 +98,63 @@ flowchart LR
 | `$project` | 欄位投影與計算 | `"$field"` 代表引用欄位值；未加 `$` 的普通字串則視為純字串常數（Literal） |
 | `$lookup` | 跨集合關聯 | 結果為陣列，雙方關聯鍵的 BSON 型別須一致 |
 
+---
+
+### 深入解析：什麼是 `$unwind`？（陣列扁平化）
+
+**「Unwind」** 的字面意思是「解開、攤平（例如把捲起來的包裹或毛線解開）」。在 MongoDB 中，它的作用是**「將文檔中的陣列欄位打散，使陣列中的每個元素都獨立分裂成一筆單獨的文檔」**。
+
+#### 1. 展開前 vs 展開後的資料形態變化
+
+假設有一筆訂單，裡面包含購買了兩項商品的陣列：
+
+```json
+// 【輸入】：原始 1 筆訂單文件
+{
+  "_id": "order_101",
+  "customer": "Alice",
+  "items": [
+    { "name": "鍵盤", "qty": 1, "price": 3000 },
+    { "name": "滑鼠", "qty": 2, "price": 1000 }
+  ]
+}
+```
+
+當管道執行了 `{$unwind: "$items"}` 之後，這 1 筆訂單會**分裂成 2 筆獨立文件**，原有的外部欄位（`_id`, `customer`）會被完整複製：
+
+```json
+// 【輸出】：展開為 2 筆獨立文件（items 不再是陣列，而是單一物件）
+{
+  "_id": "order_101",
+  "customer": "Alice",
+  "items": { "name": "鍵盤", "qty": 1, "price": 3000 }
+}
+{
+  "_id": "order_101",
+  "customer": "Alice",
+  "items": { "name": "滑鼠", "qty": 2, "price": 1000 }
+}
+```
+
+#### 2. 為什麼一定要使用 `$unwind`？
+MongoDB 的 `$group` 階段**無法直接跨文件對「陣列內層的多個元素」進行分組加總**。  
+例如：若要統計全店「各商品的總銷售數量與營業額」，資料庫必須先透過 `$unwind` 將每張訂單中的商品打平成獨立的數據列，下一個 Stage 的 `$group: { _id: "$items.name", totalQty: { $sum: "$items.qty" } }` 才能精準對「鍵盤」與「滑鼠」分別進行加總！
+
+#### 3. 🚨 重大陷阱：消失的空陣列（與解法）
+- **預設行為**：若某張訂單的 `items: []` 是空陣列，或欄位為 `null`、不存在，`$unwind` 預設會**直接將該筆訂單丟棄（從輸出中完全蒸發）**！
+- **正確解法（保留無項目的文件）**：改用完整的物件語法，開啟 `preserveNullAndEmptyArrays: true`：
+  ```javascript
+  {
+    $unwind: {
+      path: "$items",
+      preserveNullAndEmptyArrays: true // ⭐️ 空陣列或 null 仍保留原始文檔不丟棄
+    }
+  }
+  ```
+
+---
+
+
 ## 2. 月度商品排行榜：完整可執行範例
 
 程式位於 `examples/mongosh/aggregation.js`，執行命令見[驗證流程](lab.md)。
