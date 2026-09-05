@@ -55,6 +55,7 @@ docker exec -it mongo_learning_db mongosh -u admin -p password123 --authenticati
 | **Level 2** | [核心 CRUD 操作](docs/02-crud.md) | 豐富查詢過濾器、原子更新運算符、陣列操作、分頁排序 |
 | **Level 3** | [聚合管道 Aggregation](docs/03-aggregation.md) | Pipeline 觀念、`$match`, `$group`, `$unwind`, `$lookup` 關聯分析 |
 | **Level 4** | [索引與效能調校](docs/04-indexing.md) | 複合索引最左前綴、ESR 原則、`explain` 執行計畫解讀 |
+| **專題** | [Atlas Search 全文與向量檢索](docs/04-atlas-search.md) | 內建 Apache Lucene、錯字模糊匹配、打字自動補全、AI 向量語義搜尋（RAG） |
 | **Level 5** | [資料模型設計思維](docs/05-data-modeling.md) | 內嵌（Embedding）vs 參照（Referencing）、Subset 與 Bucket 等 4 大設計模式 |
 | **Level 6** | [Python 實戰整合](docs/06-python-integration.md) | 使用 `uv` 環境、PyMongo、Motor 非同步、Pydantic 驗證、交易 |
 | **Level 6** | [.NET (C#) 實戰整合](docs/06-dotnet-integration.md) | 官方 `MongoDB.Driver`、POCO BSON 標記、LINQ 查詢、強型別 Builders、Repository 封裝 |

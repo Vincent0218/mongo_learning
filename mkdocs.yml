@@ -60,6 +60,7 @@ nav:
   - 進階調校:
       - Level 3 聚合管道 Aggregation: 03-aggregation.md
       - Level 4 索引與效能調校: 04-indexing.md
+      - Atlas Search 全文與向量檢索: 04-atlas-search.md
   - 架構設計:
       - Level 5 資料模型設計思維: 05-data-modeling.md
       - Level 7 叢集架構與高可用: 07-architecture.md
