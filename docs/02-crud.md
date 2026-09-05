@@ -63,7 +63,33 @@ db.products.countDocuments({discount: {$exists: false}})   // 回傳 3：商品 
 ```
 
 
-投影可以選擇欄位或排除欄位；除了 `_id` 可例外排除之外，投影時不要同時混用包含（inclusion）與排除（exclusion）。
+### 什麼是投影（Projection）？
+
+「**投影 (Projection)**」在資料庫領域中，指的就是**「指定只回傳哪些欄位、或隱藏哪些欄位」**（等同於 SQL 中的 `SELECT col1, col2`，而非 `SELECT *`）。
+
+適當使用投影能大幅減少網路傳輸頻寬與記憶體開銷（例如不撈取幾百維的向量或大段文字）。`find()` 的**第二個參數**即為投影設定：
+
+```javascript
+// 1. 包含模式（Inclusion）：只拿指定欄位（設為 1）
+// 預設仍會回傳 _id
+db.products.find({}, {name: 1, price: 1})
+// 回傳結果：{ _id: ObjectId(...), name: "無線降噪耳機", price: 499000 }
+
+// 2. 排除模式（Exclusion）：隱藏敏感或肥大欄位，其餘全部回傳（設為 0）
+db.products.find({}, {embedding: 0, description: 0})
+// 回傳結果：包含除了 embedding 與 description 以外的所有欄位
+
+// 3. 唯一的混用例外：隱藏 _id
+// MongoDB 預設一定會回傳 _id；若連 _id 都不想要，可以在包含模式下唯一寫一個 _id: 0
+db.products.find({}, {name: 1, price: 1, _id: 0})
+// 回傳結果：{ name: "無線降噪耳機", price: 499000 }（完全沒有 _id）
+
+// 4. 錯誤示範（混用會報錯）：
+// db.products.find({}, {name: 1, description: 0})
+// 拋出 MongoServerError: Cannot do inclusion on field name in exclusion projection
+// 原因：資料庫無法判斷你的邏輯是「只要拿 name」還是「除了 description 其他全要」。
+```
+
 
 ## 3. 穩定排序與分頁
 
