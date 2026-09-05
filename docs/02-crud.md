@@ -218,9 +218,34 @@ db.user_stats.updateOne(
 )
 ```
 
-#### 關鍵運算子：`$setOnInsert` 的妙用
+#### 關鍵運算子：`$setOnInsert` 的妙用（極簡實例示範）
 - **若是既有文件（Update 觸發）**：`$inc` 與 `$set` 會正常執行，但 `$setOnInsert` 裡的欄位會**被完全略過**，因此 `createdAt` 不會被無故洗掉。
 - **若是全新文件（Insert 觸發）**：MongoDB 會將「Filter 的條件」＋「`$set`」＋「`$inc`」＋「`$setOnInsert`」全部合併為全新文件寫入。
+
+**觀察兩次執行一模一樣的指令，資料庫文檔的變化：**
+
+```javascript
+// 【第一次執行】：資料庫完全沒有這筆記錄 ➔ 觸發 Insert
+// 結果：upsertedCount: 1
+{
+  "_id": ObjectId("..."),
+  "userId": ObjectId("200000000000000000000001"),
+  "loginCount": 1,
+  "lastLogin": ISODate("2026-09-05T10:00:00Z"),
+  "createdAt": ISODate("2026-09-05T10:00:00Z") // 👈 $setOnInsert 生效！
+}
+
+// 【10 分鐘後，第二次執行同一行指令】：文檔已存在 ➔ 觸發 Update
+// 結果：matchedCount: 1, modifiedCount: 1, upsertedCount: 0
+{
+  "_id": ObjectId("..."),
+  "userId": ObjectId("200000000000000000000001"),
+  "loginCount": 2,                                // 👈 $inc 累加為 2
+  "lastLogin": ISODate("2026-09-05T10:10:00Z"),  // 👈 $set 更新為 10:10
+  "createdAt": ISODate("2026-09-05T10:00:00Z")   // ⭐️ 重點：createdAt 依然保留 10:00，未被竄改！
+}
+```
+
 
 #### 如何判讀執行結果？
 MongoDB 的回應物件會明確告訴你是發生了 Update 還是 Insert：
