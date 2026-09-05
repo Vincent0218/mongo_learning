@@ -2,10 +2,10 @@
 
 **目標：** 區分字面包含、斷詞檢索與向量相似度，建立與查詢相符的索引。一般本機環境能練習 regex；本課程的 `mongo:7.0` Compose 沒有 Search 服務，不能直接執行 `$search`／`$vectorSearch`。
 
-!!! warning "環境提醒：Atlas Search 僅適用於 MongoDB Atlas 雲端版"
-    本章後續介紹的 `$search` 與 `$vectorSearch` 深度整合了 Apache Lucene 引擎，**僅能在 MongoDB Atlas (雲端託管版)** 運行。
-    本地 Community Docker 環境不支援 `$search` 運算符（執行會回傳 `Unrecognized pipeline stage: '$search'`）。
-    若您目前使用本地 Docker 練習，請直接參考 [第 2 節：本機可跑：字面包含搜尋](#2) 的原生 `$regex` 查詢。
+!!! warning "環境提醒：本教材的 Compose 環境未配置搜尋服務"
+    本教材提供的 `mongo:7.0` Compose 環境未配置搜尋服務，因此不支援 `$search`／`$vectorSearch`；這些功能需要 Atlas 或另行配置的相容搜尋環境。
+    搜尋功能並非雲端限定；官方提供包含 `mongot` 的 `mongodb/mongodb-atlas-local` Docker 映像，可供本機開發與測試，詳見[官方本機部署指南](https://www.mongodb.com/docs/search/self-managed/current/installation/quick-start/)。
+    若您目前使用本教材的 Compose 環境練習，請先參考 [第 2 節：本機可跑：字面包含搜尋](#2) 的原生 `$regex` 查詢。
 
 ## 1. 先選搜尋語意
 

@@ -8,6 +8,8 @@ watch:
 theme:
   name: material
   language: zh-Hant
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
   palette:
     # 亮色模式
     - scheme: default

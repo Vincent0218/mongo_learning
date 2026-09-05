@@ -29,7 +29,7 @@ Product 的 Price 是 int64（新台幣分），CreatedAt 映射到 createdAt。
 
 ## 3. 完整 CRUD、連線與交易程式
 
-以下為可直接執行的完整程式碼（包含 BSON 映射、非同步連線池管理、CRUD 檢查與交易實作）：
+以下為可直接執行的完整程式碼（包含 BSON 映射、連線與資源生命週期管理、CRUD 檢查與交易實作）：
 
 ??? example "點擊展開查看完整原始碼：examples/go/main.go"
     ```go

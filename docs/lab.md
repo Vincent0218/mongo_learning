@@ -87,13 +87,15 @@ mongodb://127.0.0.1:27018/?replicaSet=rs0&directConnection=true
 
 ## 4. 驗證命令
 
-專案已內建 `./scripts/verify.ps1` 一鍵驗證腳本，會在完成各項檢查後自動退出，並防止 PowerShell 在不同版本（如 Windows PowerShell 5.1 與 pwsh 7）下的引號跳脫差異問題。推薦直接執行：
+完整驗證需安裝 uv、Python、Go 與 .NET SDK，並完成一般環境與交易環境的初始化及種子資料匯入。只練習單一語言者，請執行下方對應的分段命令。
+
+專案已內建 `./scripts/verify.ps1` 一鍵驗證腳本，可減少手動輸入與引號跳脫問題，任一檢查失敗就會停止。腳本不會自行安裝工具、啟動資料庫或匯入資料；完成上述準備後再執行：
 
 ```powershell
 ./scripts/verify.ps1
 ```
 
-若欲手動逐步執行驗證，可依序在 PowerShell 執行下列分段指令（中文輸出若遇編碼問題，Python 可加上 `-X utf8`）：
+若欲手動逐步執行驗證，可依序在 PowerShell 執行下列分段指令。外部命令失敗後，PowerShell 不一定會自動停止，請確認每步成功後再繼續。中文輸出若遇編碼問題，Python 可加上 `-X utf8`：
 
 ```powershell
 docker compose exec -T mongodb mongosh -u admin -p password123 --authenticationDatabase admin --quiet /examples/crud-checks.js
