@@ -53,6 +53,9 @@ docker compose -f compose.transactions.yml exec -T mongodb mongosh --quiet /exam
 | [.NET C# 實戰整合](docs/06-dotnet-integration.md) | .NET 8、Driver、LINQ |
 | [Go 實戰整合](docs/06-golang-integration.md) | Go Driver v2、context |
 | [叢集架構與高可用](docs/07-architecture.md) | 副本集、一致性、分片、備份還原 |
+| [高頻語法與指令速查表](docs/cheatsheet.md) | 常用 CRUD、聚合運算子、索引與維護速查 |
+| [經典錯誤排查與 FAQ](docs/troubleshooting.md) | 7 大常踩雷區、超時、游標過期、記憶體溢出排查 |
+
 
 ## 範例與驗證
 

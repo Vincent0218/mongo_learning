@@ -28,6 +28,9 @@ flowchart TD
 | [.NET C# 實戰整合](06-dotnet-integration.md) | BSON 映射、LINQ、Builders 與交易 |
 | [Go 實戰整合](06-golang-integration.md) | Driver v2、context、BSON 與交易 |
 | [叢集架構與高可用](07-architecture.md) | 區分一致性設定，完成備份還原驗證 |
+| [高頻語法與指令速查表](cheatsheet.md) | 隨時查閱常用 CRUD、聚合運算子、索引維護與 mongosh 技巧 |
+| [經典錯誤排查與 FAQ](troubleshooting.md) | 迅速診斷連線超時、記憶體溢出、游標過期與副本集衝突 |
+
 
 一般 Compose 可執行 CRUD 與索引；交易用另一份單節點 replica set。Search 需相容的額外部署，手工向量練習不呼叫付費 API。
 

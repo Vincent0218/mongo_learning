@@ -77,3 +77,7 @@ nav:
       - Golang 實戰整合: 06-golang-integration.md
   - 生產維運:
       - 叢集架構與高可用: 07-architecture.md
+  - 附錄速查:
+      - 高頻語法與指令速查表: cheatsheet.md
+      - 經典錯誤排查與 FAQ: troubleshooting.md
+
