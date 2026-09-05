@@ -7,6 +7,7 @@ watch:
 
 theme:
   name: material
+  custom_dir: overrides
   language: zh-Hant
   logo: assets/logo.svg
   favicon: assets/logo.svg
