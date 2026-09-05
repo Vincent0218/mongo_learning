@@ -91,27 +91,60 @@ db.products.find({}, {name: 1, price: 1, _id: 0})
 ```
 
 
-## 3. 穩定排序與分頁
+## 3. 穩定排序與高效率分頁
+
+在資料庫分頁中，主要有兩種做法：**傳統 Offset 分頁（`skip + limit`）** 與 **游標式分頁（Keyset / Cursor Pagination）**。
+
+### 做法 A：傳統 Offset 分頁（適合小數據量）
 
 ```javascript
+// 第 1 頁（每頁 2 筆）
 db.products.find({}, {name: 1, price: 1})
   .sort({price: -1, _id: 1}).skip(0).limit(2)
-// 螢幕、耳機
+// 回傳：螢幕、耳機
+
+// 第 2 頁
+db.products.find({}, {name: 1, price: 1})
+  .sort({price: -1, _id: 1}).skip(2).limit(2)
+// 回傳：鍵盤、充電器
 ```
 
-單靠 price 排序，價格相同時順序不穩定；加入唯一的 `_id`。大 offset 的 skip 仍需走過前面的結果，可改用最後一筆的排序鍵：
+> [!WARNING]
+> **「大 offset 的 skip」效能黑洞（深度分頁問題）**：  
+> 當使用者翻到第 1,000 頁時，指令為 `skip(20000).limit(20)`。MongoDB **並非直接跳到第 20,001 筆**，而是必須在硬碟或記憶體中**實體掃描並數過前 20,000 筆文件**，然後全部丟棄，只取最後 20 筆。  
+> 頁數越深，CPU 與 I/O 消耗越高，查詢耗時會從幾毫秒暴增至數秒甚至超時。
+
+---
+
+### 做法 B：游標式分頁（Keyset Pagination，推薦海量資料採用）
+
+**核心思維**：不要叫資料庫「數過前面幾萬筆再丟掉」，而是記住**「上一頁最後一筆資料的排序欄位值（Keyset）」**，下一頁直接向後檢索。
+
+假設第 1 頁最後一筆商品（`last`）為：`{ price: 499000, _id: ObjectId("...") }`。  
+下一頁查詢直接以 `last` 的數值當作錨點：
 
 ```javascript
+// 1. 取出第一頁，並取得最後一筆記錄
 const firstPage = db.products.find().sort({price: -1, _id: 1}).limit(2).toArray();
 const last = firstPage[firstPage.length - 1];
-db.products.find({$or: [
-  {price: {$lt: last.price}},
-  {price: last.price, _id: {$gt: last._id}}
-]}).sort({price: -1, _id: 1}).limit(2)
-// 鍵盤、充電器
+
+// 2. 第二頁：直接利用 B-Tree 索引定位到上一頁之後的資料（完全不用 skip）
+db.products.find({
+  $or: [
+    // 情況 1：價格比上一頁最後一筆更低
+    { price: { $lt: last.price } },
+    // 情況 2：價格剛好相同，但 _id 順序在上一頁最後一筆之後（解決並列同價問題）
+    { price: last.price, _id: { $gt: last._id } }
+  ]
+}).sort({price: -1, _id: 1}).limit(2);
+// 回傳：鍵盤、充電器
 ```
 
-搭配 `{price: -1, _id: 1}` 索引。跨頁期間若價格被修改，仍可能有重複或遺漏；穩定排序不等於資料快照。空的第一頁沒有 last，應停止翻頁。
+#### 為什麼要加 `_id: 1` 複合排序？
+若僅以 `price: -1` 排序，當多筆商品「價格完全相同」時，MongoDB 無法保證回傳順序，翻頁時容易發生「同一筆商品在第 1 頁與第 2 頁重複出現」或「漏掉某些商品」。加入全域唯一的 `_id` 才能保證**順序絕對穩定**。
+
+搭配 `{price: -1, _id: 1}` 複合索引，此查詢可達到 $O(\log N)$ 的極速二分查找，無論翻到第 1 頁還是第 1,000 頁，速度都在毫秒級！
+
 
 ## 4. Update：原子性與業務條件
 
