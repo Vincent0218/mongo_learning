@@ -192,18 +192,56 @@ db.crud_practice.updateOne({_id: demoId}, {$pull: {tags: "熱銷"}})
 >    ```
 
 
-### Upsert 與唯一性
+### 什麼是 Upsert？（Update + Insert）
+
+「**Upsert**」是 **Update（更新）** 與 **Insert（新增）** 的組合字，其核心語意為：**「若文檔已存在則更新；若不存在則直接新增」**。
+
+在過去傳統的做法中，工程師往往需要寫兩段邏輯：「先 `findOne` 查詢是否存在，若存在則調用 `updateOne`，若不存在則調用 `insertOne`」。這種做法不僅產生兩次網路往返（RTT），更會在高併發場景下引發競爭條件（Race Condition）。
+
+在 MongoDB 中，只需在 `updateOne` / `updateMany` 的第三個參數傳入 `{ upsert: true }`，即可完成原子性的「有則改之，無則生之」：
 
 ```javascript
-db.user_stats.createIndex({userId: 1}, {unique: true})
+// 範例情境：使用者每次登入時，更新其登入紀錄；若首次登入則自動建立紀錄文件
 db.user_stats.updateOne(
-  {userId: ObjectId("200000000000000000000001")},
-  {$inc: {loginCount: 1}, $set: {lastLogin: new Date()}, $setOnInsert: {createdAt: new Date()}},
-  {upsert: true}
+  // 1. 查詢條件 (Filter)：用來判斷文件是否已存在
+  { userId: ObjectId("200000000000000000000001") },
+
+  // 2. 更新動作 (Update Document)
+  {
+    $inc: { loginCount: 1 },                 // 不論新增或更新：登入次數 +1
+    $set: { lastLogin: new Date() },          // 不論新增或更新：更新最後登入時間
+    $setOnInsert: { createdAt: new Date() }  // ⭐️ 關鍵：僅在「首次新增」時寫入建立時間！
+  },
+
+  // 3. 選項 (Options)
+  { upsert: true }
 )
 ```
 
-唯一索引才負責約束 userId 唯一；實務上也要處理併發 upsert 可能出現的 duplicate key 錯誤。
+#### 關鍵運算子：`$setOnInsert` 的妙用
+- **若是既有文件（Update 觸發）**：`$inc` 與 `$set` 會正常執行，但 `$setOnInsert` 裡的欄位會**被完全略過**，因此 `createdAt` 不會被無故洗掉。
+- **若是全新文件（Insert 觸發）**：MongoDB 會將「Filter 的條件」＋「`$set`」＋「`$inc`」＋「`$setOnInsert`」全部合併為全新文件寫入。
+
+#### 如何判讀執行結果？
+MongoDB 的回應物件會明確告訴你是發生了 Update 還是 Insert：
+- **觸發更新時**：`{ matchedCount: 1, modifiedCount: 1, upsertedCount: 0 }`
+- **觸發新增時**：`{ matchedCount: 0, modifiedCount: 0, upsertedCount: 1, upsertedId: ObjectId(...) }`
+
+---
+
+#### 🚨 生產環境陷阱：為什麼 Upsert 必須建立唯一索引？
+當兩個併發請求（例如使用者狂點按鈕兩下）在**同一微秒內**同時執行 Upsert 時：
+1. 請求 A 檢查發現文件不存在，準備執行 Insert。
+2. 請求 B 也幾乎在同一時刻檢查，也發現文件不存在，也準備執行 Insert。
+3. **如果沒有唯一索引**，MongoDB 會允許兩者皆寫入，集合內就會**出現兩筆相同 `userId` 的重複文件**！
+
+**正確解法**：
+```javascript
+// 1. 先為業務唯一鍵建立 Unique 索引
+db.user_stats.createIndex({ userId: 1 }, { unique: true })
+```
+建立唯一索引後，若遇到上述高併發，其中一個請求會成功插入，另一個請求則會拋出 `E11000 duplicate key error`。後端程式碼只要捕捉該例外並簡單進行**重試（Retry）**，第二次執行時因文件已被先前的請求建立，就會自動安全地轉為 Update 流程！
+
 
 ## 5. Delete 與驗證
 
