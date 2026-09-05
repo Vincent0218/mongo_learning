@@ -166,7 +166,31 @@ db.crud_practice.updateOne({_id: demoId}, {$addToSet: {tags: "音訊"}})
 db.crud_practice.updateOne({_id: demoId}, {$pull: {tags: "熱銷"}})
 ```
 
-`updateOne` 的更新文件使用運算子，或合法的更新 pipeline；完整替換請明確使用 `replaceOne`，並理解未提供的欄位會被移除。不要把完整 API 請求物件直接當成更新文件。
+`updateOne` 的更新文件必須明確使用更新運算子（如 `$set`、`$inc`），或合法的更新 pipeline；若需要整份文件替換，請明確使用 `replaceOne`。
+
+> [!CAUTION]
+> **為什麼「絕對不要把完整 API 請求物件直接當成更新文件」？**
+> 
+> 初學者常圖方便，直接將 HTTP 請求的 JSON 物件（如 Express 的 `req.body`、FastAPI 的 dict）整包傳入更新，這會引發嚴重的**資安漏洞與資料意外抹除**：
+> 
+> 1. **大量賦值漏洞（Mass Assignment / 權限竄改）**：  
+>    假設 API 原本只供修改個人暱稱，但攻擊者在 JSON 惡意塞入 `"role": "admin"` 或 `"balance": 99999999`。若直接執行 `updateOne(..., {$set: req.body})`，攻擊者將直接取得管理員權限或竄改錢包餘額！
+> 2. **資料意外抹除（誤用 replaceOne）**：  
+>    若誤用 `replaceOne(..., req.body)`，因前端通常只傳遞「修改的欄位」，`replaceOne` 會將整份文件直接抹平替換，導致原有的 `passwordHash`、`createdAt`、`permissions` 等未傳欄位**永久遺失**。
+> 3. **正確防護做法（DTO 白名單機制）**：  
+>    後端應透過型別定義（如 Pydantic / C# DTO / Go Struct）嚴格過濾欄位，只顯式更新被允許的屬性：
+>    ```javascript
+>    // ❌ 危險寫法：整包傳入，任由攻擊者注入未知欄位
+>    db.users.updateOne({_id: userId}, {$set: req.body});
+>    
+>    // ✅ 正確做法：透過白名單物件顯式提取允許更新的欄位
+>    const allowedUpdate = {
+>      nickname: sanitize(req.body.nickname),
+>      avatarUrl: req.body.avatarUrl
+>    };
+>    db.users.updateOne({_id: userId}, {$set: allowedUpdate, $currentDate: {updatedAt: true}});
+>    ```
+
 
 ### Upsert 與唯一性
 
